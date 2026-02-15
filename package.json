@@ -27,7 +27,10 @@
     "cli",
     "developer-tools"
   ],
-  "author": "Kemal Can Yaprak",
+  "author": {
+    "name": "Kemal Can Yaprak",
+    "email": "kemalcan.yaprak1@gmail.com"
+  },
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-iam": "^3.0.0",

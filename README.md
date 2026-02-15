@@ -1,7 +1,5 @@
 # ENVHUB-CLI
 
-<img src="assets/logo.png" alt="envhub logo" width="320" />
-
 **envhub** is a CLI tool that makes sharing `.env` files between developers easy and secure. Instead of sending secrets over chat messages, envhub stores them in a cloud secrets manager and lets your team push and pull environment configurations safely.
 
 ## Why envhub?

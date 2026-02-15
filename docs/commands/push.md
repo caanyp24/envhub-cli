@@ -39,7 +39,7 @@ npx envhub push my-app-dev ./.env -m "Added Stripe config"
 ### Force push (skip all checks and confirmations)
 
 ```bash
-npx envhub push my-app-dev --force
+npx envhub push my-app-dev ./.env --force
 ```
 
 ## What Happens

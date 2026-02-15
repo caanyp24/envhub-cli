@@ -1,6 +1,6 @@
 # Setup (envhub init)
 
-The `envhub init` command walks you through an interactive wizard that configures everything you need. This is one of the key improvements over similar tools — no manual config file editing required.
+The `envhub init` command walks you through an interactive wizard that configures everything you need — no manual config file editing required.
 
 ## Prerequisites
 
@@ -94,10 +94,6 @@ After completing the wizard, envhub will:
     Pull a secret:  envhub pull <name> <file>
     List secrets:   envhub list
 ```
-
-## No More `export AWS_PROFILE`
-
-Unlike other tools that require you to run `export AWS_PROFILE=...` in every new terminal session, envhub stores the profile name in `.envhubrc.json` and loads it automatically. One less thing to remember.
 
 ## Re-running init
 

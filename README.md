@@ -13,10 +13,10 @@
 
 ### Getting Started
 
-1. [Installation](getting-started/installation.md)
-2. [Setup (envhub init)](getting-started/setup.md)
-3. [Your First Secret](getting-started/first-secret.md)
-4. [Version Control](getting-started/version-control.md)
+1. [Installation](docs/getting-started/installation.md)
+2. [Setup (envhub init)](docs/getting-started/setup.md)
+3. [Your First Secret](docs/getting-started/first-secret.md)
+4. [Version Control](docs/getting-started/version-control.md)
 
 ### Commands
 

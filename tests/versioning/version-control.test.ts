@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { VersionControl } from "../../src/versioning/version-control.js";
 import { ConfigManager } from "../../src/config/config.js";
 import type { SecretProvider } from "../../src/providers/provider.interface.js";

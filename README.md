@@ -22,18 +22,18 @@
 
 | Command | Description |
 | --- | --- |
-| [push](commands/push.md) | Push a local .env file to the cloud |
-| [pull](commands/pull.md) | Pull the latest .env file from the cloud |
-| [cat](commands/cat.md) | Display the contents of a secret |
-| [list](commands/list.md) | List all managed secrets |
-| [delete](commands/delete.md) | Delete a secret |
-| [grant](commands/grant.md) | Grant a user access to a secret |
-| [revoke](commands/revoke.md) | Revoke a user's access to a secret |
+| [push](docs/commands/push.md) | Push a local .env file to the cloud |
+| [pull](docs/commands/pull.md) | Pull the latest .env file from the cloud |
+| [cat](docs/commands/cat.md) | Display the contents of a secret |
+| [list](docs/commands/list.md) | List all managed secrets |
+| [delete](docs/commands/delete.md) | Delete a secret |
+| [grant](docs/commands/grant.md) | Grant a user access to a secret |
+| [revoke](docs/commands/revoke.md) | Revoke a user's access to a secret |
 
 ### Architecture
 
-- [Configuration (.envhubrc.json)](architecture/configuration.md)
-- [Provider Architecture](architecture/providers.md)
+- [Configuration (.envhubrc.json)](docs/architecture/configuration.md)
+- [Provider Architecture](docs/architecture/providers.md)
 
 ## Quick Example
 

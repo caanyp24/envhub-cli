@@ -413,7 +413,7 @@ export class AWSSecretsProvider implements SecretProvider {
       }
 
       return result.User.Arn;
-    } catch (error) {
+    } catch {
       throw new Error(
         `Failed to resolve user '${userIdentifier}'. ` +
           `Provide either a valid IAM username or a full ARN.`

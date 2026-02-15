@@ -13,27 +13,27 @@
 
 ### Getting Started
 
-1. [Installation](docs/getting-started/installation.md)
-2. [Setup (envhub init)](docs/getting-started/setup.md)
-3. [Your First Secret](docs/getting-started/first-secret.md)
-4. [Version Control](docs/getting-started/version-control.md)
+1. [Installation](https://github.com/caanyp24/envhub-cli/blob/main/docs/getting-started/installation.md)
+2. [Setup (envhub init)](https://github.com/caanyp24/envhub-cli/blob/main/docs/getting-started/setup.md)
+3. [Your First Secret](https://github.com/caanyp24/envhub-cli/blob/main/docs/getting-started/first-secret.md)
+4. [Version Control](https://github.com/caanyp24/envhub-cli/blob/main/docs/getting-started/version-control.md)
 
 ### Commands
 
 | Command | Description |
 | --- | --- |
-| [push](docs/commands/push.md) | Push a local .env file to the cloud |
-| [pull](docs/commands/pull.md) | Pull the latest .env file from the cloud |
-| [cat](docs/commands/cat.md) | Display the contents of a secret |
-| [list](docs/commands/list.md) | List all managed secrets |
-| [delete](docs/commands/delete.md) | Delete a secret |
-| [grant](docs/commands/grant.md) | Grant a user access to a secret |
-| [revoke](docs/commands/revoke.md) | Revoke a user's access to a secret |
+| [push](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/push.md) | Push a local .env file to the cloud |
+| [pull](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/pull.md) | Pull the latest .env file from the cloud |
+| [cat](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/cat.md) | Display the contents of a secret |
+| [list](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/list.md) | List all managed secrets |
+| [delete](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/delete.md) | Delete a secret |
+| [grant](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/grant.md) | Grant a user access to a secret |
+| [revoke](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/revoke.md) | Revoke a user's access to a secret |
 
 ### Architecture
 
-- [Configuration (.envhubrc.json)](docs/architecture/configuration.md)
-- [Provider Architecture](docs/architecture/providers.md)
+- [Configuration (.envhubrc.json)](https://github.com/caanyp24/envhub-cli/blob/main/docs/architecture/configuration.md)
+- [Provider Architecture](https://github.com/caanyp24/envhub-cli/blob/main/docs/architecture/providers.md)
 
 ## Quick Example
 

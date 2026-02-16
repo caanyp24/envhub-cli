@@ -119,4 +119,4 @@ Each one is tracked independently in your `.envhubrc.json`:
 
 - Learn about [Version Control](version-control.md) to understand conflict detection
 - See all available [Commands](../commands/push.md)
-- [Grant access](../commands/grant.md) to your teammates
+- [Grant access](../commands/grant.md) to your teammates (AWS only for now)

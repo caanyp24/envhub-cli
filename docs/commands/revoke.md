@@ -1,5 +1,7 @@
 # envhub revoke
 
+> AWS-only: `revoke` currently works with AWS Secrets Manager resource policies.
+
 Revoke a user's access to a specific secret. The user will no longer be able to pull or read the secret.
 
 ## Usage

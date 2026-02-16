@@ -3,6 +3,7 @@ import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { VersionControl } from "../versioning/version-control.js";
 import { writeEnvFileRaw, parseEnvContent } from "../utils/env-parser.js";
+import { addEnvhubHeader } from "../utils/envhub-header.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -26,9 +27,10 @@ export async function pullCommand(
   try {
     const result = await provider.pull(secretName);
     const keyCount = parseEnvContent(result.content).size;
+    const localContent = addEnvhubHeader(secretName, result.content);
 
     // Write the file
-    await writeEnvFileRaw(resolvedPath, result.content);
+    await writeEnvFileRaw(resolvedPath, localContent);
     await versionControl.recordPull(secretName, result.version, filePath);
 
     spinner.succeed(

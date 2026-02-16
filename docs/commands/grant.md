@@ -1,5 +1,7 @@
 # envhub grant
 
+> AWS-only: `grant` currently works with AWS Secrets Manager resource policies.
+
 Grant another IAM user access to a specific secret. The user will be able to pull the secret using `envhub pull`.
 
 ## Usage

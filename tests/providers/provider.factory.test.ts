@@ -9,6 +9,13 @@ vi.mock("../../src/providers/aws/aws-secrets.provider.js", () => ({
   },
 }));
 
+vi.mock("../../src/providers/azure/azure-key-vault.provider.js", () => ({
+  AzureKeyVaultProvider: class MockAzureKeyVaultProvider {
+    name = "azure";
+    constructor() {}
+  },
+}));
+
 import { ProviderFactory } from "../../src/providers/provider.factory.js";
 
 describe("ProviderFactory", () => {
@@ -37,7 +44,19 @@ describe("ProviderFactory", () => {
       );
     });
 
-    it("should throw for Azure provider (not yet implemented)", () => {
+    it("should create an Azure provider with valid config", () => {
+      const config: EnvhubConfig = {
+        provider: "azure",
+        prefix: "envhub-",
+        azure: { vaultUrl: "https://my-vault.vault.azure.net" },
+        secrets: {},
+      };
+
+      const provider = ProviderFactory.createProvider(config);
+      expect(provider.name).toBe("azure");
+    });
+
+    it("should throw when Azure config is missing", () => {
       const config: EnvhubConfig = {
         provider: "azure",
         prefix: "envhub-",
@@ -45,7 +64,7 @@ describe("ProviderFactory", () => {
       };
 
       expect(() => ProviderFactory.createProvider(config)).toThrow(
-        "Azure Key Vault provider is not yet implemented"
+        "Azure configuration is missing"
       );
     });
 
@@ -75,7 +94,7 @@ describe("ProviderFactory", () => {
 
       const azure = providers.find((p) => p.type === "azure");
       expect(azure).toBeDefined();
-      expect(azure!.available).toBe(false);
+      expect(azure!.available).toBe(true);
 
       const gcp = providers.find((p) => p.type === "gcp");
       expect(gcp).toBeDefined();

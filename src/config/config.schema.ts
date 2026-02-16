@@ -15,10 +15,10 @@ export interface AWSConfig {
 }
 
 /**
- * Placeholder for future Azure configuration.
+ * Azure Key Vault-specific configuration.
  */
 export interface AzureConfig {
-  /** Azure Key Vault URL */
+  /** Azure Key Vault URL (e.g. "https://my-vault.vault.azure.net") */
   vaultUrl: string;
 }
 
@@ -93,6 +93,25 @@ export function validateConfig(config: Partial<EnvhubConfig>): string[] {
     }
     if (!config.aws.region) {
       errors.push("'aws.region' is required.");
+    }
+  }
+
+  if (config.provider === "azure" && !config.azure) {
+    errors.push("Azure configuration ('azure') is required when provider is 'azure'.");
+  }
+
+  if (config.provider === "azure" && config.azure) {
+    if (!config.azure.vaultUrl) {
+      errors.push("'azure.vaultUrl' is required.");
+    } else {
+      try {
+        const vaultUrl = new URL(config.azure.vaultUrl);
+        if (vaultUrl.protocol !== "https:") {
+          errors.push("'azure.vaultUrl' must use HTTPS.");
+        }
+      } catch {
+        errors.push("'azure.vaultUrl' must be a valid URL.");
+      }
     }
   }
 

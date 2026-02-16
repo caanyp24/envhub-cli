@@ -58,6 +58,8 @@ Changes to push:
   Message: Updated Redis URL
 ```
 
+If you are using Azure, the provider in the success output will be `azure`.
+
 If nothing changed, envhub lets you know:
 
 ```

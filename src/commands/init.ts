@@ -94,6 +94,40 @@ const AWS_REGIONS = [
 ];
 
 /**
+ * Validate an Azure Key Vault URL.
+ */
+function validateAzureVaultUrl(value: string): true | string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "Vault URL is required.";
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return "Enter a valid URL (e.g. https://my-vault.vault.azure.net).";
+  }
+
+  if (parsed.protocol !== "https:") {
+    return "Vault URL must use https://";
+  }
+
+  if (!parsed.hostname.includes(".vault.azure.")) {
+    return "Vault URL should look like https://<name>.vault.azure.net";
+  }
+
+  return true;
+}
+
+/**
+ * Normalize a vault URL by removing trailing slashes.
+ */
+function normalizeVaultUrl(value: string): string {
+  return value.trim().replace(/\/+$/, "");
+}
+
+/**
  * Update .gitignore to include .envhubrc.json if not already present.
  */
 async function updateGitignore(dir: string): Promise<boolean> {
@@ -113,8 +147,8 @@ async function updateGitignore(dir: string): Promise<boolean> {
     }
 
     const newContent = content
-      ? content.trimEnd() + "\n\n# envhub config (contains AWS profile info)\n" + entry + "\n"
-      : "# envhub config (contains AWS profile info)\n" + entry + "\n";
+      ? content.trimEnd() + "\n\n# envhub config (contains cloud provider info)\n" + entry + "\n"
+      : "# envhub config (contains cloud provider info)\n" + entry + "\n";
 
     await fs.writeFile(gitignorePath, newContent, "utf-8");
     return true;
@@ -260,6 +294,20 @@ export async function initCommand(): Promise<void> {
       profile: profileName,
       region: finalRegion,
     };
+  } else if (provider === "azure") {
+    logger.dim("  Azure authentication uses DefaultAzureCredential.");
+    logger.dim("  For local development, run 'az login' or set AZURE_* env vars.");
+    logger.log("");
+
+    const vaultUrlInput = await input({
+      message: "Enter your Azure Key Vault URL:",
+      default: "https://my-vault.vault.azure.net",
+      validate: validateAzureVaultUrl,
+    });
+
+    config.azure = {
+      vaultUrl: normalizeVaultUrl(vaultUrlInput),
+    };
   }
 
   // Step 3: Configure prefix
@@ -298,6 +346,9 @@ export async function initCommand(): Promise<void> {
     if (config.aws) {
       logger.dim(`  AWS Profile: ${config.aws.profile}`);
       logger.dim(`  AWS Region:  ${config.aws.region}`);
+    }
+    if (config.azure) {
+      logger.dim(`  Vault URL:   ${config.azure.vaultUrl}`);
     }
     logger.newline();
     logger.log("  Next steps:");

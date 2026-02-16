@@ -31,6 +31,14 @@
     "name": "Kemal Can Yaprak",
     "email": "kemalcan.yaprak1@gmail.com"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/caanyp24/envhub-cli.git"
+  },
+  "homepage": "https://github.com/caanyp24/envhub-cli#readme",
+  "bugs": {
+    "url": "https://github.com/caanyp24/envhub-cli/issues"
+  },
   "license": "MIT",
   "dependencies": {
     "@azure/identity": "^4.11.1",

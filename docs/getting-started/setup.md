@@ -4,7 +4,10 @@ The `envhub init` command walks you through an interactive wizard that configure
 
 ## Prerequisites
 
-Before running the wizard, make sure you have an AWS profile configured. If you don't have one yet, see [Creating an AWS Profile](#creating-an-aws-profile) below.
+Before running the wizard, prepare the provider you want to use:
+
+- AWS: See [AWS Prerequisites](#aws-prerequisites)
+- Azure: See [Azure Prerequisites](#azure-prerequisites)
 
 ## Running the Wizard
 
@@ -19,13 +22,15 @@ The wizard will guide you through the following steps:
 ```
 ? Which cloud provider would you like to use?
 > AWS Secrets Manager
-  Azure Key Vault (coming soon)
+  Azure Key Vault
   GCP Secret Manager (coming soon)
 ```
 
-Currently only AWS Secrets Manager is available. More providers will be added in future releases.
+AWS and Azure are available. GCP is planned.
 
-### Step 2: Select Your AWS Profile
+### Step 2: Provider-Specific Configuration
+
+#### AWS Flow: Select Your AWS Profile
 
 envhub automatically detects all AWS profiles from your `~/.aws/credentials` and `~/.aws/config` files:
 
@@ -41,7 +46,7 @@ Profiles with a region configured in `~/.aws/config` show the region in parenthe
 
 If no profiles are found, you can enter a profile name manually.
 
-### Step 3: Select a Region
+#### AWS Flow: Select a Region
 
 If the selected profile has a region configured in `~/.aws/config`, envhub will suggest using it:
 
@@ -62,6 +67,20 @@ If you decline (or the profile has no region configured), you can pick from a li
   ...
   Enter a custom region...
 ```
+
+#### Azure Flow: Enter Your Key Vault URL
+
+If you choose Azure, envhub asks for your Key Vault URL:
+
+```
+? Enter your Azure Key Vault URL: (https://my-vault.vault.azure.net)
+```
+
+Use your vault URI in this format:
+
+`https://<vault-name>.vault.azure.net`
+
+envhub validates the URL and stores it in `.envhubrc.json`.
 
 ### Step 4: Configure Prefix
 
@@ -85,9 +104,8 @@ After completing the wizard, envhub will:
 ✔ envhub is ready to use!
 
   Config file: /path/to/your/project/.envhubrc.json
-  Provider:    aws
-  AWS Profile: my-profile
-  AWS Region:  eu-central-1
+  Provider:    azure
+  Vault URL:   https://my-vault.vault.azure.net
 
   Next steps:
     Push a secret:  envhub push <name> <file>
@@ -101,7 +119,7 @@ If you already have a `.envhubrc.json`, running `envhub init` again will ask you
 
 ---
 
-## Creating an AWS Profile
+## AWS Prerequisites
 
 If you don't have an AWS profile yet, follow these steps:
 
@@ -140,3 +158,62 @@ aws_secret_access_key=YOUR_SECRET_KEY
 ### 4. Done
 
 The `envhub init` wizard will now detect your profile automatically.
+
+---
+
+## Azure Prerequisites
+
+To use Azure Key Vault with envhub, configure these items once.
+
+### 1. Install and Sign In to Azure CLI
+
+Install Azure CLI:
+
+https://learn.microsoft.com/cli/azure/install-azure-cli
+
+Sign in:
+
+```bash
+az login
+az account show
+```
+
+### 2. Create a Resource Group and Key Vault
+
+Example:
+
+```bash
+az group create -n rg-envhub-dev -l westeurope
+
+az keyvault create \
+  -n myapp-prod \
+  -g rg-envhub-dev \
+  -l westeurope \
+  --enable-rbac-authorization true
+```
+
+Get your vault URL:
+
+```bash
+az keyvault show -n myapp-prod -g rg-envhub-dev --query properties.vaultUri -o tsv
+```
+
+### 3. Grant Yourself Key Vault Permissions (RBAC)
+
+In the Azure portal:
+
+1. Open your Key Vault
+2. Go to **Access control (IAM)**
+3. **Add** -> **Add role assignment**
+4. Select role **Key Vault Administrator**
+5. Assign it to your user
+
+Wait a few minutes for role propagation.
+
+### 4. Run envhub init With Azure
+
+```bash
+npx envhub init
+```
+
+Choose **Azure Key Vault** and paste the vault URL from step 2.

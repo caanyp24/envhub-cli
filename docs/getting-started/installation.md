@@ -3,7 +3,9 @@
 ## Requirements
 
 - **Node.js** >= 18.0.0
-- **AWS CLI** configured with at least one profile (see [Setup](setup.md))
+- One supported cloud provider configured:
+  - **AWS Secrets Manager**: AWS CLI + configured profile
+  - **Azure Key Vault**: Azure CLI + signed-in account
 
 ## Install via npm
 
@@ -43,4 +45,4 @@ After installing envhub, run the interactive setup wizard to configure your proj
 npx envhub init
 ```
 
-See the [Setup Guide](setup.md) for details.
+See the [Setup Guide](setup.md) for provider-specific steps (AWS and Azure).

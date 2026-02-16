@@ -7,7 +7,7 @@
 - No more sending API keys over Teams or Slack
 - Built-in version control prevents accidental overwrites
 - Easy interactive setup — no manual config files needed
-- Extensible provider architecture (AWS today, Azure & GCP coming soon)
+- Extensible provider architecture (AWS and Azure available, GCP coming soon)
 
 ## Table of Contents
 
@@ -56,5 +56,5 @@ npx envhub grant my-app-dev jane.doe
 | Provider | Status |
 | --- | --- |
 | AWS Secrets Manager | Available |
-| Azure Key Vault | Planned |
+| Azure Key Vault | Available |
 | GCP Secret Manager | Planned |

@@ -6,21 +6,21 @@ envhub is designed with a pluggable provider architecture. Each cloud backend is
 
 ```
                    ┌─────────────────────┐
-                   │    CLI Commands      │
-                   │  (push, pull, etc.)  │
+                   │    CLI Commands     │
+                   │  (push, pull, etc.) │
                    └──────────┬──────────┘
                               │
                    ┌──────────▼──────────┐
-                   │  SecretProvider      │
-                   │    (Interface)       │
+                   │  SecretProvider     │
+                   │    (Interface)      │
                    └──────────┬──────────┘
                               │
               ┌───────────────┼───────────────┐
               │               │               │
-    ┌─────────▼─────┐ ┌──────▼──────┐ ┌──────▼──────┐
+    ┌──────────▼─────┐ ┌──────▼──────┐ ┌──────▼──────┐
     │ AWS Secrets    │ │ Azure Key   │ │ GCP Secret  │
     │ Manager        │ │ Vault       │ │ Manager     │
-    │ (implemented)  │ │ (planned)   │ │ (planned)   │
+    │ (implemented)  │ │             │ │ (planned)   │
     └────────────────┘ └─────────────┘ └─────────────┘
 ```
 
@@ -122,13 +122,33 @@ envhub-my-app-dev       ← stored in AWS
 
 The AWS provider uses **resource-based policies** on secrets to control access. Each secret can have a policy with an `EnvhubAccess` statement listing the IAM ARNs that are allowed to read the secret.
 
+## Azure Key Vault Provider
+
+The Azure implementation (`src/providers/azure/azure-key-vault.provider.ts`) stores the same envhub JSON payload format used by AWS.
+
+Authentication is handled through `DefaultAzureCredential`, so local development works well with `az login` or `AZURE_*` environment variables.
+
+### Secret Naming
+
+Azure Key Vault restricts secret names to letters, numbers, and `-` (max length 127). envhub validates the prefixed secret name before writing.
+
+### Deletion Behavior
+
+`envhub delete` performs a standard Key Vault delete.  
+`envhub delete --force` also attempts a purge; this can fail if purge protection is enabled.
+
+### Access Control Note
+
+`grant` and `revoke` are currently implemented for AWS only.  
+For Azure, manage permissions via Azure RBAC / access policies.
+
 ## Adding a New Provider
 
 To add support for a new cloud provider (e.g. Azure Key Vault):
 
 ### Step 1: Create the Provider Class
 
-Create a new file at `src/providers/azure/azure-keyvault.provider.ts`:
+Create a new file for the provider implementation:
 
 ```typescript
 import type { SecretProvider, PushOptions, PushResult, PullResult, SecretListItem, DeleteOptions } from "../provider.interface.js";
@@ -204,8 +224,8 @@ src/providers/
   provider.factory.ts           ← Creates provider instances
   aws/
     aws-secrets.provider.ts     ← AWS implementation
-  azure/                        ← (future)
-    azure-keyvault.provider.ts
+  azure/
+    azure-key-vault.provider.ts ← Azure implementation
   gcp/                          ← (future)
     gcp-secrets.provider.ts
 ```

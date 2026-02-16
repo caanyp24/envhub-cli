@@ -94,7 +94,9 @@ describe("pullCommand", () => {
     await pullCommand("my-app", envFilePath);
 
     const content = await fs.readFile(envFilePath, "utf-8");
-    expect(content).toBe("DB_HOST=localhost\nDB_PORT=5432\n");
+    expect(content).toBe(
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST=localhost\nDB_PORT=5432\n"
+    );
 
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
       expect.stringContaining("Pulled 'my-app' (v3)")
@@ -129,7 +131,9 @@ describe("pullCommand", () => {
     await pullCommand("my-app", envFilePath);
 
     const content = await fs.readFile(envFilePath, "utf-8");
-    expect(content).toBe("NEW_KEY=new_value\n");
+    expect(content).toBe(
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nNEW_KEY=new_value\n"
+    );
     expect(content).not.toContain("OLD_KEY");
   });
 });

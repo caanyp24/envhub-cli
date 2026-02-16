@@ -15,11 +15,10 @@ The following filenames are recognized:
 
 ```json
 {
-  "provider": "aws",
+  "provider": "azure",
   "prefix": "envhub-",
-  "aws": {
-    "profile": "my-profile",
-    "region": "eu-central-1"
+  "azure": {
+    "vaultUrl": "https://my-vault.vault.azure.net"
   },
   "secrets": {
     "my-app-dev": {
@@ -42,10 +41,10 @@ The following filenames are recognized:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `provider` | `string` | Yes | Cloud provider to use. Currently: `"aws"`. Future: `"azure"`, `"gcp"` |
+| `provider` | `string` | Yes | Cloud provider to use. Available: `"aws"`, `"azure"`. Planned: `"gcp"` |
 | `prefix` | `string` | Yes | Prefix for secret names in the cloud provider. Default: `"envhub-"` |
 | `aws` | `object` | When provider is `"aws"` | AWS-specific configuration |
-| `azure` | `object` | When provider is `"azure"` | Azure-specific configuration (future) |
+| `azure` | `object` | When provider is `"azure"` | Azure-specific configuration |
 | `gcp` | `object` | When provider is `"gcp"` | GCP-specific configuration (future) |
 | `secrets` | `object` | Yes | Map of tracked secrets with version info |
 
@@ -55,6 +54,12 @@ The following filenames are recognized:
 | --- | --- | --- | --- |
 | `aws.profile` | `string` | Yes | AWS CLI profile name (from `~/.aws/credentials`) |
 | `aws.region` | `string` | Yes | AWS region (e.g. `"eu-central-1"`) |
+
+### Azure Configuration
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `azure.vaultUrl` | `string` | Yes | Azure Key Vault URL (e.g. `"https://my-vault.vault.azure.net"`) |
 
 ### Secret Tracking
 
@@ -79,7 +84,7 @@ envhub validates the configuration on every command. If the config is invalid, y
 
 The `.envhubrc.json` file contains:
 
-- Your AWS profile name (which could reveal internal naming conventions)
+- Cloud provider metadata (e.g. AWS profile name or Azure vault URL)
 - Version tracking data that is specific to your local environment
 
 Each developer should run `envhub init` once to create their own local config. The secrets themselves are shared through the cloud provider, not through the config file.

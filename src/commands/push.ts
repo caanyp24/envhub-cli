@@ -5,6 +5,7 @@ import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { VersionControl } from "../versioning/version-control.js";
 import { readEnvFileRaw, fileExists, parseEnvContent } from "../utils/env-parser.js";
+import { stripEnvhubHeader } from "../utils/envhub-header.js";
 import { diffEnvContents, formatChanges } from "../utils/diff.js";
 import { logger } from "../utils/logger.js";
 
@@ -53,7 +54,7 @@ export async function pushCommand(
   }
 
   // Read the local .env file
-  const localContent = await readEnvFileRaw(resolvedPath);
+  const localContent = stripEnvhubHeader(await readEnvFileRaw(resolvedPath));
 
   // Version check (unless --force)
   if (!options.force) {
@@ -79,7 +80,7 @@ export async function pushCommand(
   let isNewSecret = false;
 
   try {
-    const remoteContent = await provider.cat(secretName);
+    const remoteContent = stripEnvhubHeader(await provider.cat(secretName));
 
     // Secret exists — compare local vs remote
     const changes = diffEnvContents(remoteContent, localContent);

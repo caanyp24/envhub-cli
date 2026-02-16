@@ -158,4 +158,23 @@ describe("pushCommand", () => {
       expect.stringContaining("Initial push")
     );
   });
+
+  it("should strip envhub header before push", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nKEY=value\n"
+    );
+
+    mockProvider.cat.mockRejectedValueOnce(new Error("Not found"));
+    mockProvider.push.mockResolvedValueOnce({ version: 1, name: "my-app" });
+    mockProvider.getVersion.mockRejectedValueOnce(new Error("Not found"));
+
+    await pushCommand("my-app", envFilePath, { force: true });
+
+    expect(mockProvider.push).toHaveBeenCalledWith(
+      "my-app",
+      "KEY=value\n",
+      expect.objectContaining({ force: true })
+    );
+  });
 });

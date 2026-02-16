@@ -27,8 +27,8 @@
 | [cat](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/cat.md) | Display the contents of a secret |
 | [list](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/list.md) | List all managed secrets |
 | [delete](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/delete.md) | Delete a secret |
-| [grant](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/grant.md) | Grant a user access to a secret |
-| [revoke](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/revoke.md) | Revoke a user's access to a secret |
+| [grant](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/grant.md) | Grant a user access to a secret (AWS only) |
+| [revoke](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/revoke.md) | Revoke a user's access to a secret (AWS only) |
 
 ### Architecture
 
@@ -47,7 +47,7 @@ npx envhub push my-app-dev ./.env -m "Initial setup"
 # 3. Your teammate pulls it
 npx envhub pull my-app-dev ./.env
 
-# 4. Grant access to another developer
+# 4. Grant access to another developer (AWS only)
 npx envhub grant my-app-dev jane.doe
 ```
 

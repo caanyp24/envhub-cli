@@ -2,39 +2,39 @@
 
 The `envhub init` command walks you through an interactive wizard that configures everything you need — no manual config file editing required.
 
-## Prerequisites
+## Choose Your Path
 
-Before running the wizard, prepare the provider you want to use:
-
-- AWS: See [AWS Prerequisites](#aws-prerequisites)
-- Azure: See [Azure Prerequisites](#azure-prerequisites)
-
-## Running the Wizard
+Run the wizard:
 
 ```bash
 npx envhub init
 ```
 
-The wizard will guide you through the following steps:
+Then follow one of these setup paths.
 
-### Step 1: Select a Provider
+<details>
+<summary><strong>AWS Setup Path</strong></summary>
 
-```
+### Prerequisites
+
+Install and configure AWS CLI with at least one profile.
+
+If you need help, jump to [AWS Prerequisites](#aws-prerequisites).
+
+### In the Wizard
+
+1. Select provider:
+
+```text
 ? Which cloud provider would you like to use?
 > AWS Secrets Manager
   Azure Key Vault
   GCP Secret Manager (coming soon)
 ```
 
-AWS and Azure are available. GCP is planned.
+2. Select your AWS profile (auto-detected from `~/.aws/credentials` and `~/.aws/config`):
 
-### Step 2: Provider-Specific Configuration
-
-#### AWS Flow: Select Your AWS Profile
-
-envhub automatically detects all AWS profiles from your `~/.aws/credentials` and `~/.aws/config` files:
-
-```
+```text
 ? Select your AWS profile:
 > default (eu-central-1)
   staging (eu-west-1)
@@ -42,45 +42,47 @@ envhub automatically detects all AWS profiles from your `~/.aws/credentials` and
   Enter a different profile name...
 ```
 
-Profiles with a region configured in `~/.aws/config` show the region in parentheses.
+3. Select region:
+- If profile region exists, envhub asks to reuse it.
+- Otherwise choose from list or enter custom region.
 
-If no profiles are found, you can enter a profile name manually.
-
-#### AWS Flow: Select a Region
-
-If the selected profile has a region configured in `~/.aws/config`, envhub will suggest using it:
-
-```
+```text
 ? Use region 'eu-central-1' from your AWS profile? (Y/n)
 ```
 
-If you accept, that region is used — no further selection needed.
+</details>
 
-If you decline (or the profile has no region configured), you can pick from a list:
+<details>
+<summary><strong>Azure Setup Path</strong></summary>
 
+### Prerequisites
+
+Install Azure CLI, sign in, create a Key Vault, and assign RBAC permissions.
+
+If you need help, jump to [Azure Prerequisites](#azure-prerequisites).
+
+### In the Wizard
+
+1. Select provider:
+
+```text
+? Which cloud provider would you like to use?
+  AWS Secrets Manager
+> Azure Key Vault
+  GCP Secret Manager (coming soon)
 ```
-? Select a different AWS region:
-  EU (Frankfurt) - eu-central-1
-> EU (Ireland) - eu-west-1
-  EU (London) - eu-west-2
-  US East (N. Virginia) - us-east-1
-  ...
-  Enter a custom region...
-```
 
-#### Azure Flow: Enter Your Key Vault URL
+2. Enter your Key Vault URL:
 
-If you choose Azure, envhub asks for your Key Vault URL:
-
-```
+```text
 ? Enter your Azure Key Vault URL: (https://my-vault.vault.azure.net)
 ```
 
-Use your vault URI in this format:
+Expected format:
 
 `https://<vault-name>.vault.azure.net`
 
-envhub validates the URL and stores it in `.envhubrc.json`.
+</details>
 
 ### Step 4: Configure Prefix
 

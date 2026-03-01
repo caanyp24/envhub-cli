@@ -46,11 +46,11 @@ vi.mock("../../src/utils/logger.js", () => ({
     warn: vi.fn(),
     info: vi.fn(),
     dim: vi.fn(),
+    context: vi.fn(),
     newline: vi.fn(),
-    tableHeader: vi.fn(),
-    tableRow: vi.fn(),
     spinner: vi.fn().mockReturnValue(mockSpinner),
   },
+  relativeTime: vi.fn().mockReturnValue("2 days ago"),
 }));
 
 import { listCommand } from "../../src/commands/list.js";
@@ -89,10 +89,9 @@ describe("listCommand", () => {
     await listCommand();
 
     expect(mockSpinner.stop).toHaveBeenCalled();
-    expect(logger.tableHeader).toHaveBeenCalled();
-    expect(logger.tableRow).toHaveBeenCalledTimes(2);
+    expect(logger.log).toHaveBeenCalled();
     expect(logger.dim).toHaveBeenCalledWith(
-      expect.stringContaining("2 secret(s) found")
+      expect.stringContaining("2 secrets")
     );
   });
 
@@ -104,7 +103,6 @@ describe("listCommand", () => {
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining("No secrets found")
     );
-    expect(logger.tableHeader).not.toHaveBeenCalled();
   });
 
   it("should show an error when the provider fails", async () => {

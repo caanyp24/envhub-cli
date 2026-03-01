@@ -99,7 +99,7 @@ describe("pullCommand", () => {
     );
 
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
-      expect.stringContaining("Pulled 'my-app' (v3)")
+      expect.stringContaining("Pulled my-app (v3)")
     );
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
       expect.stringContaining("2 keys")

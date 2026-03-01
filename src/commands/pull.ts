@@ -22,7 +22,7 @@ export async function pullCommand(
   const versionControl = new VersionControl(configManager, provider);
 
   // Pull from provider
-  const spinner = logger.spinner(`Pulling '${secretName}'...`);
+  const spinner = logger.spinner(`Pulling ${secretName}...`);
 
   try {
     const result = await provider.pull(secretName);
@@ -34,10 +34,10 @@ export async function pullCommand(
     await versionControl.recordPull(secretName, result.version, filePath);
 
     spinner.succeed(
-      `Pulled '${secretName}' (v${result.version}) → ${filePath} (${keyCount} keys)`
+      `Pulled ${secretName} (v${result.version}) → ${filePath} · ${keyCount} keys`
     );
   } catch (error) {
-    spinner.fail(`Failed to pull '${secretName}'.`);
+    spinner.fail(`Failed to pull ${secretName}.`);
     if (error instanceof Error) {
       logger.error(error.message);
     }

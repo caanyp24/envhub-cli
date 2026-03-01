@@ -21,13 +21,14 @@ function formatEnvTable(content: string): string {
   }
 
   const lines: string[] = [];
-  const separator = chalk.dim("─".repeat(maxKeyLen + 40));
+  const contentWidth = maxKeyLen + 2 + Math.max(...[...entries.values()].map((v) => v.length), 0);
+  const separator = chalk.dim("─".repeat(Math.min(contentWidth, 60)));
 
   lines.push(separator);
 
   for (const [key, value] of entries) {
-    const paddedKey = key.padEnd(maxKeyLen);
-    lines.push(`  ${chalk.bold.cyan(paddedKey)}  ${chalk.dim("=")}  ${value}`);
+    const paddedKey = key.padEnd(maxKeyLen + 2);
+    lines.push(`  ${chalk.bold.cyan(paddedKey)}${value}`);
   }
 
   lines.push(separator);

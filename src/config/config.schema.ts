@@ -115,5 +115,15 @@ export function validateConfig(config: Partial<EnvhubConfig>): string[] {
     }
   }
 
+  if (config.provider === "gcp" && !config.gcp) {
+    errors.push("GCP configuration ('gcp') is required when provider is 'gcp'.");
+  }
+
+  if (config.provider === "gcp" && config.gcp) {
+    if (!config.gcp.projectId) {
+      errors.push("'gcp.projectId' is required.");
+    }
+  }
+
   return errors;
 }

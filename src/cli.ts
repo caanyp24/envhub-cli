@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { Command } from "commander";
 import { initCommand } from "./commands/init.js";
 import { pushCommand } from "./commands/push.js";
@@ -7,6 +8,9 @@ import { listCommand } from "./commands/list.js";
 import { deleteCommand } from "./commands/delete.js";
 import { grantCommand } from "./commands/grant.js";
 import { revokeCommand } from "./commands/revoke.js";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../package.json") as { version: string };
 
 /**
  * Create and configure the CLI program with all commands.
@@ -19,7 +23,7 @@ export function createProgram(): Command {
     .description(
       "Securely share .env files between developers using cloud providers."
     )
-    .version("0.1.0");
+    .version(pkg.version);
 
   // ── init ────────────────────────────────────────────────────────
 

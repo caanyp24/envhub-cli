@@ -16,6 +16,13 @@ vi.mock("../../src/providers/azure/azure-key-vault.provider.js", () => ({
   },
 }));
 
+vi.mock("../../src/providers/gcp/gcp-secret-manager.provider.js", () => ({
+  GCPSecretManagerProvider: class MockGCPSecretManagerProvider {
+    name = "gcp";
+    constructor() {}
+  },
+}));
+
 import { ProviderFactory } from "../../src/providers/provider.factory.js";
 
 describe("ProviderFactory", () => {
@@ -68,7 +75,19 @@ describe("ProviderFactory", () => {
       );
     });
 
-    it("should throw for GCP provider (not yet implemented)", () => {
+    it("should create a GCP provider with valid config", () => {
+      const config: EnvhubConfig = {
+        provider: "gcp",
+        prefix: "envhub-",
+        gcp: { projectId: "envhub-project-123" },
+        secrets: {},
+      };
+
+      const provider = ProviderFactory.createProvider(config);
+      expect(provider.name).toBe("gcp");
+    });
+
+    it("should throw when GCP config is missing", () => {
       const config: EnvhubConfig = {
         provider: "gcp",
         prefix: "envhub-",
@@ -76,7 +95,7 @@ describe("ProviderFactory", () => {
       };
 
       expect(() => ProviderFactory.createProvider(config)).toThrow(
-        "GCP Secret Manager provider is not yet implemented"
+        "GCP configuration is missing"
       );
     });
   });
@@ -98,7 +117,7 @@ describe("ProviderFactory", () => {
 
       const gcp = providers.find((p) => p.type === "gcp");
       expect(gcp).toBeDefined();
-      expect(gcp!.available).toBe(false);
+      expect(gcp!.available).toBe(true);
     });
   });
 });

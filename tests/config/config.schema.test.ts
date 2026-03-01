@@ -54,19 +54,57 @@ describe("validateConfig", () => {
 
   it("should not require AWS config for non-aws providers", () => {
     const errors = validateConfig({ provider: "azure", secrets: {} });
-    // Azure has no mandatory sub-config check in current implementation
     expect(
       errors.some((e) => e.includes("AWS configuration"))
     ).toBe(false);
   });
 
+  it("should require GCP config when provider is gcp", () => {
+    const errors = validateConfig({ provider: "gcp", secrets: {} });
+    expect(
+      errors.some((e) => e.includes("GCP configuration ('gcp') is required"))
+    ).toBe(true);
+  });
+
+  it("should require gcp.projectId", () => {
+    const errors = validateConfig({
+      provider: "gcp",
+      gcp: { projectId: "" },
+      secrets: {},
+    });
+    expect(errors.some((e) => e.includes("gcp.projectId"))).toBe(true);
+  });
+
+  it("should return no errors for a valid GCP config", () => {
+    const errors = validateConfig({
+      provider: "gcp",
+      gcp: { projectId: "envhub-project-123" },
+      secrets: {},
+    });
+    expect(errors).toHaveLength(0);
+  });
+
   it("should accept all valid provider types", () => {
-    for (const provider of ["aws", "azure", "gcp"] as const) {
-      const errors = validateConfig({ provider, secrets: {} });
-      expect(
-        errors.some((e) => e.includes("Unknown provider"))
-      ).toBe(false);
-    }
+    const awsErrors = validateConfig({
+      provider: "aws",
+      aws: { profile: "default", region: "eu-central-1" },
+      secrets: {},
+    });
+    expect(awsErrors.some((e) => e.includes("Unknown provider"))).toBe(false);
+
+    const azureErrors = validateConfig({
+      provider: "azure",
+      azure: { vaultUrl: "https://my-vault.vault.azure.net" },
+      secrets: {},
+    });
+    expect(azureErrors.some((e) => e.includes("Unknown provider"))).toBe(false);
+
+    const gcpErrors = validateConfig({
+      provider: "gcp",
+      gcp: { projectId: "envhub-project-123" },
+      secrets: {},
+    });
+    expect(gcpErrors.some((e) => e.includes("Unknown provider"))).toBe(false);
   });
 });
 

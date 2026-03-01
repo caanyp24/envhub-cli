@@ -2,6 +2,7 @@ import { SecretProvider } from "./provider.interface.js";
 import { EnvhubConfig, ProviderType } from "../config/config.schema.js";
 import { AWSSecretsProvider } from "./aws/aws-secrets.provider.js";
 import { AzureKeyVaultProvider } from "./azure/azure-key-vault.provider.js";
+import { GCPSecretManagerProvider } from "./gcp/gcp-secret-manager.provider.js";
 
 /**
  * Factory for creating provider instances based on configuration.
@@ -31,9 +32,10 @@ export class ProviderFactory {
         return new AzureKeyVaultProvider(config.azure, config.prefix);
 
       case "gcp":
-        throw new Error(
-          "GCP Secret Manager provider is not yet implemented. Coming soon!"
-        );
+        if (!config.gcp) {
+          throw new Error("GCP configuration is missing. Run 'envhub init' first.");
+        }
+        return new GCPSecretManagerProvider(config.gcp, config.prefix);
 
       default:
         throw new Error(
@@ -49,7 +51,7 @@ export class ProviderFactory {
     return [
       { type: "aws", label: "AWS Secrets Manager", available: true },
       { type: "azure", label: "Azure Key Vault", available: true },
-      { type: "gcp", label: "GCP Secret Manager", available: false },
+      { type: "gcp", label: "GCP Secret Manager", available: true },
     ];
   }
 }

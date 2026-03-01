@@ -281,6 +281,14 @@ describe("GCPSecretManagerProvider", () => {
         name: makeSecretResource("envhub-my-app"),
       });
     });
+
+    it("should throw a friendly error when the secret does not exist", async () => {
+      mockDeleteSecret.mockRejectedValueOnce(makeNotFoundError());
+
+      await expect(provider.delete("nonexistent")).rejects.toThrow(
+        "Secret 'nonexistent' not found."
+      );
+    });
   });
 
   // ── grant / revoke ─────────────────────────────────────────────

@@ -134,7 +134,7 @@ function validateGcpProjectId(value: string): true | string {
   }
 
   if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(trimmed)) {
-    return "Project ID should look like 'my-project-123'.";
+    return "Project ID must be 6–30 chars: lowercase letters, numbers, hyphens. Must start with a letter and end with a letter or digit.";
   }
 
   return true;

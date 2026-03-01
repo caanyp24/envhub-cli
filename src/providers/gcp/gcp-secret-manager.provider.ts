@@ -141,6 +141,8 @@ export class GCPSecretManagerProvider implements SecretProvider {
     const exists = await this.secretExists(secretName);
     let newVersion = 1;
 
+    // NOTE: GCP Secret Manager does not support conditional writes.
+    // The version in the payload is a metadata counter, not atomically guaranteed.
     if (!exists) {
       await this.client.createSecret({
         parent: this.projectPath,
@@ -189,7 +191,13 @@ export class GCPSecretManagerProvider implements SecretProvider {
   }
 
   async list(): Promise<SecretListItem[]> {
-    const [secrets] = await this.client.listSecrets({ parent: this.projectPath });
+    const secrets = [];
+    let pageToken: string | undefined;
+    do {
+      const [page, , response] = await this.client.listSecrets({ parent: this.projectPath, pageToken });
+      secrets.push(...page);
+      pageToken = response?.nextPageToken ?? undefined;
+    } while (pageToken);
 
     const relevant = secrets
       .map((s) => s.name?.split("/").pop())
@@ -208,8 +216,12 @@ export class GCPSecretManagerProvider implements SecretProvider {
           secretsCount = entries.size;
           lastMessage = payload.metadata.message ?? null;
           updatedAt = new Date(payload.metadata.updatedAt);
-        } catch {
-          // If we cannot parse the payload, still show the secret in list output.
+        } catch (error) {
+          const grpcCode = (error as { code?: number }).code;
+          if (typeof grpcCode === "number" && !this.isNotFoundError(error)) {
+            throw error;
+          }
+          // Parse errors and not-found: still show secret in list output.
         }
 
         return { name: secretName, secretsCount, updatedAt, lastMessage };
@@ -219,22 +231,24 @@ export class GCPSecretManagerProvider implements SecretProvider {
     return items.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async delete(secretName: string, options?: DeleteOptions): Promise<void> {
-    void options;
-    await this.client.deleteSecret({ name: this.secretResource(secretName) });
+  async delete(secretName: string, _options?: DeleteOptions): Promise<void> {
+    try {
+      await this.client.deleteSecret({ name: this.secretResource(secretName) });
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        throw new Error(`Secret '${secretName}' not found.`);
+      }
+      throw error;
+    }
   }
 
-  async grant(secretName: string, userIdentifier: string): Promise<void> {
-    void secretName;
-    void userIdentifier;
+  async grant(_secretName: string, _userIdentifier: string): Promise<void> {
     throw new Error(
       "Grant is not implemented for GCP Secret Manager yet. Use IAM bindings in Google Cloud."
     );
   }
 
-  async revoke(secretName: string, userIdentifier: string): Promise<void> {
-    void secretName;
-    void userIdentifier;
+  async revoke(_secretName: string, _userIdentifier: string): Promise<void> {
     throw new Error(
       "Revoke is not implemented for GCP Secret Manager yet. Use IAM bindings in Google Cloud."
     );

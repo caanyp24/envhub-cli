@@ -127,6 +127,19 @@ function normalizeVaultUrl(value: string): string {
   return value.trim().replace(/\/+$/, "");
 }
 
+function validateGcpProjectId(value: string): true | string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "GCP project ID is required.";
+  }
+
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(trimmed)) {
+    return "Project ID must be 6–30 chars: lowercase letters, numbers, hyphens. Must start with a letter and end with a letter or digit.";
+  }
+
+  return true;
+}
+
 /**
  * Update .gitignore to include .envhubrc.json if not already present.
  */
@@ -308,6 +321,19 @@ export async function initCommand(): Promise<void> {
     config.azure = {
       vaultUrl: normalizeVaultUrl(vaultUrlInput),
     };
+  } else if (provider === "gcp") {
+    logger.dim("  GCP authentication uses Application Default Credentials.");
+    logger.dim("  For local development, run 'gcloud auth application-default login'.");
+    logger.log("");
+
+    const projectId = await input({
+      message: "Enter your GCP Project ID:",
+      validate: validateGcpProjectId,
+    });
+
+    config.gcp = {
+      projectId: projectId.trim(),
+    };
   }
 
   // Step 3: Configure prefix
@@ -349,6 +375,9 @@ export async function initCommand(): Promise<void> {
     }
     if (config.azure) {
       logger.dim(`  Vault URL:   ${config.azure.vaultUrl}`);
+    }
+    if (config.gcp) {
+      logger.dim(`  Project ID:  ${config.gcp.projectId}`);
     }
     logger.newline();
     logger.log("  Next steps:");

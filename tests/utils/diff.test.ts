@@ -109,8 +109,9 @@ describe("formatChanges", () => {
     ];
     const result = formatChanges(changes);
 
-    expect(result).toContain("Added (1)");
-    expect(result).toContain("+ NEW_KEY=sec***");
+    expect(result).toContain("+ NEW_KEY");
+    expect(result).toContain("sec***");
+    expect(result).toContain("added");
   });
 
   it("should format removed entries", () => {
@@ -119,8 +120,8 @@ describe("formatChanges", () => {
     ];
     const result = formatChanges(changes);
 
-    expect(result).toContain("Removed (1)");
-    expect(result).toContain("- OLD_KEY");
+    expect(result).toContain("− OLD_KEY");
+    expect(result).toContain("removed");
   });
 
   it("should format changed entries", () => {
@@ -129,8 +130,8 @@ describe("formatChanges", () => {
     ];
     const result = formatChanges(changes);
 
-    expect(result).toContain("Changed (1)");
     expect(result).toContain("~ MOD_KEY");
+    expect(result).toContain("changed");
   });
 
   it("should mask short values completely", () => {
@@ -139,10 +140,11 @@ describe("formatChanges", () => {
     ];
     const result = formatChanges(changes);
 
-    expect(result).toContain("+ SHORT=***");
+    expect(result).toContain("+ SHORT");
+    expect(result).toContain("***");
   });
 
-  it("should group all change types together", () => {
+  it("should include all change types in output", () => {
     const changes: EnvChange[] = [
       { key: "A", type: "added", newValue: "value_a" },
       { key: "B", type: "removed", oldValue: "value_b" },
@@ -150,9 +152,9 @@ describe("formatChanges", () => {
     ];
     const result = formatChanges(changes);
 
-    expect(result).toContain("Added (1)");
-    expect(result).toContain("Removed (1)");
-    expect(result).toContain("Changed (1)");
+    expect(result).toContain("+ A");
+    expect(result).toContain("− B");
+    expect(result).toContain("~ C");
   });
 });
 
@@ -178,7 +180,7 @@ describe("summarizeChanges", () => {
       { key: "C", type: "changed", oldValue: "old", newValue: "new" },
       { key: "D", type: "changed", oldValue: "old2", newValue: "new2" },
     ];
-    expect(summarizeChanges(changes)).toBe("1 added, 1 removed, 2 changed");
+    expect(summarizeChanges(changes)).toBe("1 added · 1 removed · 2 changed");
   });
 
   it("should omit zero-count types", () => {

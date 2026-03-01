@@ -119,7 +119,7 @@ describe("pushCommand", () => {
       expect.objectContaining({ force: true })
     );
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
-      expect.stringContaining("Pushed 'my-app' (v1)")
+      expect.stringContaining("Created my-app (v1)")
     );
   });
 

@@ -1,6 +1,7 @@
+import chalk from "chalk";
 import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
-import { logger } from "../utils/logger.js";
+import { logger, relativeTime } from "../utils/logger.js";
 
 /**
  * The `envhub list` command.
@@ -22,35 +23,35 @@ export async function listCommand(): Promise<void> {
       return;
     }
 
+    const NAME_W = 20;
+    const KEYS_W = 10;
+    const DATE_W = 16;
+
     logger.newline();
-    logger.tableHeader(
-      { label: "Name", width: 30 },
-      { label: "Secrets", width: 10 },
-      { label: "Updated", width: 22 },
-      { label: "Message", width: 30 }
-    );
 
     for (const secret of secrets) {
-      const updatedAt = secret.updatedAt
-        ? secret.updatedAt.toLocaleDateString("de-DE", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "—";
+      const name = secret.name.padEnd(NAME_W);
+      const keysStr = `${secret.secretsCount} keys`.padEnd(KEYS_W);
+      const date = secret.updatedAt ? relativeTime(secret.updatedAt).padEnd(DATE_W) : "—".padEnd(DATE_W);
+      const msg = secret.lastMessage ?? "—";
 
-      logger.tableRow(
-        { value: secret.name, width: 30 },
-        { value: String(secret.secretsCount), width: 10 },
-        { value: updatedAt, width: 22 },
-        { value: secret.lastMessage ?? "—", width: 30 }
+      logger.log(
+        `  ${chalk.cyan("●")} ${chalk.bold(name)}  ${chalk.dim(keysStr)}  ${chalk.dim(date)}  ${chalk.dim(msg)}`
       );
     }
 
+    // Build provider context string
+    let providerContext = config.provider;
+    if (config.provider === "aws" && config.aws?.region) {
+      providerContext += ` · ${config.aws.region}`;
+    } else if (config.provider === "azure" && config.azure?.vaultUrl) {
+      providerContext += ` · ${config.azure.vaultUrl}`;
+    } else if (config.provider === "gcp" && config.gcp?.projectId) {
+      providerContext += ` · ${config.gcp.projectId}`;
+    }
+
     logger.newline();
-    logger.dim(`  ${secrets.length} secret(s) found.`);
+    logger.dim(`  ${secrets.length} secret${secrets.length !== 1 ? "s" : ""} · ${providerContext}`);
     logger.newline();
   } catch (error) {
     spinner.fail("Failed to list secrets.");

@@ -68,32 +68,28 @@ export function formatChanges(changes: EnvChange[]): string {
     return "No changes detected.";
   }
 
-  const lines: string[] = [];
-
   const added = changes.filter((c) => c.type === "added");
-  const removed = changes.filter((c) => c.type === "removed");
   const changed = changes.filter((c) => c.type === "changed");
+  const removed = changes.filter((c) => c.type === "removed");
 
-  if (added.length > 0) {
-    lines.push(`  🟢 Added (${added.length}):`);
-    for (const c of added) {
-      lines.push(chalk.green(`     + ${c.key}=${maskValue(c.newValue ?? "")}`));
-    }
-  }
+  // Sort: added first, then changed, then removed
+  const sorted = [...added, ...changed, ...removed];
 
-  if (removed.length > 0) {
-    lines.push(`  🔴 Removed (${removed.length}):`);
-    for (const c of removed) {
-      lines.push(chalk.red(`     - ${c.key}`));
-    }
-  }
+  const maxKeyLen = Math.max(...sorted.map((c) => c.key.length));
 
-  if (changed.length > 0) {
-    lines.push(`  🟡 Changed (${changed.length}):`);
-    for (const c of changed) {
-      lines.push(chalk.yellow(`     ~ ${c.key}`));
+  const lines = sorted.map((c) => {
+    const paddedKey = c.key.padEnd(maxKeyLen);
+    if (c.type === "added") {
+      const masked = chalk.dim(maskValue(c.newValue ?? "").padEnd(10));
+      return chalk.green(`  + ${paddedKey}  ${masked}`) + chalk.dim("  added");
     }
-  }
+    if (c.type === "changed") {
+      const masked = chalk.dim(maskValue(c.newValue ?? "").padEnd(10));
+      return chalk.yellow(`  ~ ${paddedKey}  ${masked}`) + chalk.dim("  changed");
+    }
+    // removed
+    return chalk.red(`  − ${paddedKey}`) + chalk.dim("  " + " ".repeat(10) + "  removed");
+  });
 
   return lines.join("\n");
 }
@@ -116,7 +112,7 @@ export function summarizeChanges(changes: EnvChange[]): string {
   if (removed > 0) parts.push(`${removed} removed`);
   if (changed > 0) parts.push(`${changed} changed`);
 
-  return parts.join(", ");
+  return parts.join(" · ");
 }
 
 /**

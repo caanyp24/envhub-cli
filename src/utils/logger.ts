@@ -2,6 +2,26 @@ import chalk from "chalk";
 import ora, { type Ora } from "ora";
 
 /**
+ * Return a human-readable relative time string.
+ */
+export function relativeTime(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const m = Math.floor(diff / 60000);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  if (d > 30)
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  if (d > 0) return `${d} day${d > 1 ? "s" : ""} ago`;
+  if (h > 0) return `${h} hour${h > 1 ? "s" : ""} ago`;
+  if (m > 0) return `${m} minute${m > 1 ? "s" : ""} ago`;
+  return "just now";
+}
+
+/**
  * Centralized logger for consistent CLI output formatting.
  */
 export const logger = {
@@ -45,6 +65,13 @@ export const logger = {
    */
   dim(message: string): void {
     console.log(chalk.dim(message));
+  },
+
+  /**
+   * Print a dim gray context/metadata line (provider, region, count summaries).
+   */
+  context(message: string): void {
+    console.log(chalk.dim("  " + message));
   },
 
   /**

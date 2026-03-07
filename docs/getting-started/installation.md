@@ -6,6 +6,7 @@
 - One supported cloud provider configured:
   - **AWS Secrets Manager**: AWS CLI + configured profile
   - **Azure Key Vault**: Azure CLI + signed-in account
+  - **GCP Secret Manager**: Google Cloud CLI + application default credentials
 
 ## Install via npm
 
@@ -45,4 +46,4 @@ After installing envhub, run the interactive setup wizard to configure your proj
 npx envhub init
 ```
 
-See the [Setup Guide](setup.md) for provider-specific steps (AWS and Azure).
+See the [Setup Guide](setup.md) for provider-specific steps (AWS, Azure, and GCP).

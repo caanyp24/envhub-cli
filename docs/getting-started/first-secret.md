@@ -58,7 +58,7 @@ Changes to push:
   Message: Updated Redis URL
 ```
 
-If you are using Azure, the provider in the success output will be `azure`.
+If you are using Azure or GCP, the provider in the success output will be `azure` or `gcp` respectively.
 
 If nothing changed, envhub lets you know:
 

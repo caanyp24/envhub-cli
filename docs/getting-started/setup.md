@@ -29,7 +29,7 @@ If you need help, jump to [AWS Prerequisites](#aws-prerequisites).
 ? Which cloud provider would you like to use?
 > AWS Secrets Manager
   Azure Key Vault
-  GCP Secret Manager (coming soon)
+  GCP Secret Manager
 ```
 
 2. Select your AWS profile (auto-detected from `~/.aws/credentials` and `~/.aws/config`):
@@ -69,7 +69,7 @@ If you need help, jump to [Azure Prerequisites](#azure-prerequisites).
 ? Which cloud provider would you like to use?
   AWS Secrets Manager
 > Azure Key Vault
-  GCP Secret Manager (coming soon)
+  GCP Secret Manager
 ```
 
 2. Enter your Key Vault URL:
@@ -81,6 +81,34 @@ If you need help, jump to [Azure Prerequisites](#azure-prerequisites).
 Expected format:
 
 `https://<vault-name>.vault.azure.net`
+
+</details>
+
+<details>
+<summary><strong>GCP Setup Path</strong></summary>
+
+### Prerequisites
+
+Install and authenticate the Google Cloud CLI.
+
+If you need help, jump to [GCP Prerequisites](#gcp-prerequisites).
+
+### In the Wizard
+
+1. Select provider:
+
+```text
+? Which cloud provider would you like to use?
+  AWS Secrets Manager
+  Azure Key Vault
+> GCP Secret Manager
+```
+
+2. Enter your GCP project ID:
+
+```text
+? Enter your GCP project ID: my-gcp-project
+```
 
 </details>
 
@@ -219,3 +247,46 @@ npx envhub init
 ```
 
 Choose **Azure Key Vault** and paste the vault URL from step 2.
+
+---
+
+## GCP Prerequisites
+
+To use GCP Secret Manager with envhub, configure these items once.
+
+### 1. Install and Authenticate the Google Cloud CLI
+
+Install the gcloud CLI:
+
+https://cloud.google.com/sdk/docs/install
+
+Authenticate:
+
+```bash
+gcloud auth login
+gcloud auth application-default login
+```
+
+### 2. Enable the Secret Manager API
+
+```bash
+gcloud services enable secretmanager.googleapis.com --project=YOUR_PROJECT_ID
+```
+
+### 3. Grant Permissions
+
+Ensure your account has the `roles/secretmanager.admin` role (or at minimum `roles/secretmanager.secretAdmin`) on the project:
+
+```bash
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="user:you@example.com" \
+  --role="roles/secretmanager.admin"
+```
+
+### 4. Run envhub init With GCP
+
+```bash
+npx envhub init
+```
+
+Choose **GCP Secret Manager** and enter your project ID.

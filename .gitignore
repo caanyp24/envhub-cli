@@ -6,3 +6,4 @@ dist/
 .envhubrc.json
 *.tgz
 .DS_Store
+CLAUDE.md

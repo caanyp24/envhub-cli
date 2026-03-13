@@ -20,7 +20,7 @@ envhub is designed with a pluggable provider architecture. Each cloud backend is
     ┌──────────▼─────┐ ┌──────▼──────┐ ┌──────▼──────┐
     │ AWS Secrets    │ │ Azure Key   │ │ GCP Secret  │
     │ Manager        │ │ Vault       │ │ Manager     │
-    │ (implemented)  │ │             │ │ (planned)   │
+    │ (implemented)  │ │ (implemented)│ │ (implemented)│
     └────────────────┘ └─────────────┘ └─────────────┘
 ```
 
@@ -139,8 +139,26 @@ Azure Key Vault restricts secret names to letters, numbers, and `-` (max length 
 
 ### Access Control Note
 
-`grant` and `revoke` are currently implemented for AWS only.  
+`grant` and `revoke` are currently implemented for AWS only.
 For Azure, manage permissions via Azure RBAC / access policies.
+
+## GCP Secret Manager Provider
+
+The GCP implementation (`src/providers/gcp/gcp-secret-manager.provider.ts`) stores the same envhub JSON payload format used by AWS and Azure.
+
+Authentication is handled through Application Default Credentials (ADC). Local development works well with `gcloud auth application-default login` or a service account key via the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
+
+### Secret Naming
+
+GCP Secret Manager restricts secret IDs to letters, numbers, dashes, and underscores (max length 255). envhub validates the prefixed secret name before writing.
+
+### Version Behavior
+
+GCP Secret Manager has native versioning built in (each `addSecretVersion` call creates an immutable version). envhub's `version` counter in the payload metadata tracks the number of pushes made through envhub, separate from GCP's internal version numbering.
+
+### Access Control Note
+
+`grant` and `revoke` are not implemented for GCP. Manage access via IAM bindings in Google Cloud (e.g. `roles/secretmanager.secretAccessor` on the secret resource).
 
 ## Adding a New Provider
 
@@ -220,12 +238,12 @@ That's it. All commands (push, pull, cat, list, etc.) will work automatically wi
 
 ```
 src/providers/
-  provider.interface.ts         ← Shared interface + data types
-  provider.factory.ts           ← Creates provider instances
+  provider.interface.ts              ← Shared interface + data types
+  provider.factory.ts                ← Creates provider instances
   aws/
-    aws-secrets.provider.ts     ← AWS implementation
+    aws-secrets.provider.ts          ← AWS implementation
   azure/
-    azure-key-vault.provider.ts ← Azure implementation
-  gcp/                          ← (future)
-    gcp-secrets.provider.ts
+    azure-key-vault.provider.ts      ← Azure implementation
+  gcp/
+    gcp-secret-manager.provider.ts   ← GCP implementation
 ```

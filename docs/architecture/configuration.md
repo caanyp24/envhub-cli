@@ -41,11 +41,11 @@ The following filenames are recognized:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `provider` | `string` | Yes | Cloud provider to use. Available: `"aws"`, `"azure"`. Planned: `"gcp"` |
+| `provider` | `string` | Yes | Cloud provider to use. Available: `"aws"`, `"azure"`, `"gcp"` |
 | `prefix` | `string` | Yes | Prefix for secret names in the cloud provider. Default: `"envhub-"` |
 | `aws` | `object` | When provider is `"aws"` | AWS-specific configuration |
 | `azure` | `object` | When provider is `"azure"` | Azure-specific configuration |
-| `gcp` | `object` | When provider is `"gcp"` | GCP-specific configuration (future) |
+| `gcp` | `object` | When provider is `"gcp"` | GCP-specific configuration |
 | `secrets` | `object` | Yes | Map of tracked secrets with version info |
 
 ### AWS Configuration
@@ -60,6 +60,12 @@ The following filenames are recognized:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `azure.vaultUrl` | `string` | Yes | Azure Key Vault URL (e.g. `"https://my-vault.vault.azure.net"`) |
+
+### GCP Configuration
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `gcp.projectId` | `string` | Yes | GCP project ID where secrets are stored (e.g. `"my-gcp-project"`) |
 
 ### Secret Tracking
 

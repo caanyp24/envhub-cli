@@ -275,7 +275,7 @@ gcloud services enable secretmanager.googleapis.com --project=YOUR_PROJECT_ID
 
 ### 3. Grant Permissions
 
-Ensure your account has the `roles/secretmanager.admin` role (or at minimum `roles/secretmanager.secretAdmin`) on the project:
+Ensure your account has the `roles/secretmanager.admin` role on the project for full envhub usage. If you only need read-only access, use `roles/secretmanager.secretAccessor` instead:
 
 ```bash
 gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \

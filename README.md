@@ -57,4 +57,4 @@ npx envhub grant my-app-dev jane.doe
 | --- | --- |
 | AWS Secrets Manager | Available |
 | Azure Key Vault | Available |
-| GCP Secret Manager | Planned |
+| GCP Secret Manager | Available |

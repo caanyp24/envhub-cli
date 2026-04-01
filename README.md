@@ -7,7 +7,7 @@
 - No more sending API keys over Teams or Slack
 - Built-in version control prevents accidental overwrites
 - Easy interactive setup — no manual config files needed
-- Extensible provider architecture (AWS and Azure available, GCP coming soon)
+- Extensible provider architecture (AWS, Azure, and GCP available)
 
 ## Table of Contents
 

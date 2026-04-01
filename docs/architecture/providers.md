@@ -162,7 +162,7 @@ GCP Secret Manager has native versioning built in (each `addSecretVersion` call 
 
 ## Adding a New Provider
 
-To add support for a new cloud provider (e.g. Azure Key Vault):
+To add support for a new cloud provider (e.g. HashiCorp Vault):
 
 ### Step 1: Create the Provider Class
 
@@ -170,13 +170,13 @@ Create a new file for the provider implementation:
 
 ```typescript
 import type { SecretProvider, PushOptions, PushResult, PullResult, SecretListItem, DeleteOptions } from "../provider.interface.js";
-import type { AzureConfig } from "../../config/config.schema.js";
+import type { VaultConfig } from "../../config/config.schema.js";
 
-export class AzureKeyVaultProvider implements SecretProvider {
-  readonly name = "azure";
+export class VaultProvider implements SecretProvider {
+  readonly name = "vault";
 
-  constructor(config: AzureConfig, prefix: string) {
-    // Initialize Azure SDK client
+  constructor(config: VaultConfig, prefix: string) {
+    // Initialize provider SDK client
   }
 
   async push(secretName: string, content: string, options?: PushOptions): Promise<PushResult> {
@@ -196,40 +196,41 @@ export class AzureKeyVaultProvider implements SecretProvider {
 Add the new provider in `src/providers/provider.factory.ts`:
 
 ```typescript
-case "azure":
-  if (!config.azure) {
-    throw new Error("Azure configuration is missing. Run 'envhub init' first.");
+case "vault":
+  if (!config.vault) {
+    throw new Error("Vault configuration is missing. Run 'envhub init' first.");
   }
-  return new AzureKeyVaultProvider(config.azure, config.prefix);
+  return new VaultProvider(config.vault, config.prefix);
 ```
 
 Update the available providers list:
 
 ```typescript
-{ type: "azure", label: "Azure Key Vault", available: true },
+{ type: "vault", label: "HashiCorp Vault", available: true },
 ```
 
 ### Step 3: Add Config Schema
 
-Add the Azure-specific config fields in `src/config/config.schema.ts` (the interface already exists as a placeholder):
+Add provider-specific config fields in `src/config/config.schema.ts`:
 
 ```typescript
-export interface AzureConfig {
-  vaultUrl: string;
+export interface VaultConfig {
+  baseUrl: string;
+  namespace?: string;
   // Add more fields as needed
 }
 ```
 
 ### Step 4: Update the Init Wizard
 
-Add Azure-specific prompts in `src/commands/init.ts` for the setup wizard.
+Add provider-specific prompts in `src/commands/init.ts` for the setup wizard.
 
 ### Step 5: Install Dependencies
 
-Add the Azure SDK to `package.json`:
+Add the provider SDK to `package.json`:
 
 ```bash
-npm install @azure/keyvault-secrets @azure/identity
+npm install <provider-sdk-package>
 ```
 
 That's it. All commands (push, pull, cat, list, etc.) will work automatically with the new provider because they use the `SecretProvider` interface.

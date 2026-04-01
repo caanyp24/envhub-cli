@@ -103,3 +103,14 @@ If someone else has pushed a newer version since your last pull, you'll see:
 ```
 
 See [Version Control](../getting-started/version-control.md) for details.
+
+## Environment Header Safety Check
+
+If your local file has an envhub header and the header environment does not match the target secret, push is blocked by default:
+
+```
+✖ Environment mismatch: file header is 'my-app-dev', but you are pushing to 'my-app-prod'.
+ℹ Run 'envhub pull my-app-dev ./.env' first, or use --force to override.
+```
+
+This helps prevent accidentally pushing a pulled `dev` file into production environment.

@@ -5,7 +5,7 @@ import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { VersionControl } from "../versioning/version-control.js";
 import { readEnvFileRaw, fileExists, parseEnvContent } from "../utils/env-parser.js";
-import { stripEnvhubHeader } from "../utils/envhub-header.js";
+import { getEnvhubHeaderEnvironment, stripEnvhubHeader } from "../utils/envhub-header.js";
 import { diffEnvContents, formatChanges } from "../utils/diff.js";
 import { logger } from "../utils/logger.js";
 
@@ -54,7 +54,21 @@ export async function pushCommand(
   }
 
   // Read the local .env file
-  const localContent = stripEnvhubHeader(await readEnvFileRaw(resolvedPath));
+  const rawLocalContent = await readEnvFileRaw(resolvedPath);
+  const headerEnvironment = getEnvhubHeaderEnvironment(rawLocalContent);
+
+  if (!options.force && headerEnvironment && headerEnvironment !== secretName) {
+    logger.error(
+      `Environment mismatch: file header is '${headerEnvironment}', but you are pushing to '${secretName}'.`
+    );
+    logger.info(
+      `Run 'envhub pull ${secretName} ${filePath}' first, or use --force to override.`
+    );
+    process.exit(1);
+    return;
+  }
+
+  const localContent = stripEnvhubHeader(rawLocalContent);
 
   // Version check (unless --force)
   if (!options.force) {

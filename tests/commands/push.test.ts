@@ -177,4 +177,38 @@ describe("pushCommand", () => {
       expect.objectContaining({ force: true })
     );
   });
+
+  it("should block push when envhub header environment does not match target secret", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app-prod\n\nKEY=value\n"
+    );
+
+    await pushCommand("my-app-dev", envFilePath, {});
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Environment mismatch")
+    );
+    expect(process.exit).toHaveBeenCalledWith(1);
+    expect(mockProvider.push).not.toHaveBeenCalled();
+  });
+
+  it("should allow envhub header mismatch when --force is used", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app-prod\n\nKEY=value\n"
+    );
+
+    mockProvider.cat.mockRejectedValueOnce(new Error("Not found"));
+    mockProvider.push.mockResolvedValueOnce({ version: 1, name: "my-app-dev" });
+    mockProvider.getVersion.mockRejectedValueOnce(new Error("Not found"));
+
+    await pushCommand("my-app-dev", envFilePath, { force: true });
+
+    expect(mockProvider.push).toHaveBeenCalledWith(
+      "my-app-dev",
+      "KEY=value\n",
+      expect.objectContaining({ force: true })
+    );
+  });
 });

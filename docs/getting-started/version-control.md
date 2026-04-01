@@ -76,6 +76,19 @@ npx envhub push my-app-dev ./.env --force
 
 > **Warning:** Force pushing skips the version check entirely. The remote content will be overwritten regardless of what version is stored there.
 
+## Header Mismatch Protection
+
+When you `pull`, envhub writes a local header like:
+
+```txt
+# 🔐 Managed by envhub-cli
+# Environment: my-app-staging
+```
+
+On `push`, envhub checks this header. If the header environment does not match the target secret name, push is blocked by default.
+
+Example: trying to push a file tagged `my-app-prod` to `my-app-dev` will fail unless you explicitly use `--force`.
+
 ## Pull Behavior
 
 Pulling always overwrites the local file immediately — no confirmation needed. This keeps environment switching fast and frictionless.

@@ -85,9 +85,12 @@ When you `pull`, envhub writes a local header like:
 # Environment: my-app-staging
 ```
 
-On `push`, envhub checks this header. If the header environment does not match the target secret name, push is blocked by default.
+On `push`, envhub requires this header by default.
 
-Example: trying to push a file tagged `my-app-prod` to `my-app-dev` will fail unless you explicitly use `--force`.
+- If the header is missing, push is blocked and you are asked to run `pull` first.
+- If the header exists but the environment does not match the target secret name, push is also blocked.
+
+Example: trying to push a file tagged `my-app-dev` to `my-app-prod` will fail unless you explicitly use `--force`.
 
 ## Pull Behavior
 

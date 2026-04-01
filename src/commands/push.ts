@@ -57,7 +57,16 @@ export async function pushCommand(
   const rawLocalContent = await readEnvFileRaw(resolvedPath);
   const headerEnvironment = getEnvhubHeaderEnvironment(rawLocalContent);
 
-  if (!options.force && headerEnvironment && headerEnvironment !== secretName) {
+  if (!options.force && !headerEnvironment) {
+    logger.error("Missing envhub header in local file.");
+    logger.info(
+      `Run 'envhub pull ${secretName} ${filePath}' first to regenerate the header, or use --force to override.`
+    );
+    process.exit(1);
+    return;
+  }
+
+  if (!options.force && headerEnvironment !== secretName) {
     logger.error(
       `Environment mismatch: file header is '${headerEnvironment}', but you are pushing to '${secretName}'.`
     );

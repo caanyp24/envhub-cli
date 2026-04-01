@@ -3,6 +3,30 @@ const ENVHUB_MANAGED_LINE = "# 🔐 Managed by envhub-cli";
 const ENVHUB_ENV_LINE_PREFIX = "# Environment: ";
 
 /**
+ * Extract the tracked environment (secret name) from an envhub header, if present.
+ */
+export function getEnvhubHeaderEnvironment(content: string): string | null {
+  const lines = content.split("\n");
+  const firstLine = lines[0] ?? "";
+  const secondLine = lines[1] ?? "";
+
+  if (
+    firstLine === ENVHUB_MANAGED_LINE &&
+    secondLine.startsWith(ENVHUB_ENV_LINE_PREFIX)
+  ) {
+    const secretName = secondLine.substring(ENVHUB_ENV_LINE_PREFIX.length).trim();
+    return secretName.length > 0 ? secretName : null;
+  }
+
+  if (firstLine.startsWith(LEGACY_ENVHUB_HEADER_PREFIX)) {
+    const secretName = firstLine.substring(LEGACY_ENVHUB_HEADER_PREFIX.length).trim();
+    return secretName.length > 0 ? secretName : null;
+  }
+
+  return null;
+}
+
+/**
  * Remove an envhub local header from the beginning of .env content.
  */
 export function stripEnvhubHeader(content: string): string {

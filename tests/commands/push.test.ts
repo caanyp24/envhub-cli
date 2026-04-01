@@ -124,7 +124,10 @@ describe("pushCommand", () => {
   });
 
   it("should detect no changes and skip push", async () => {
-    await fs.writeFile(envFilePath, "KEY=value\n");
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nKEY=value\n"
+    );
 
     mockProvider.cat.mockResolvedValueOnce("KEY=value\n");
     mockProvider.getVersion.mockResolvedValueOnce(1);
@@ -138,7 +141,10 @@ describe("pushCommand", () => {
   });
 
   it("should include a message when provided", async () => {
-    await fs.writeFile(envFilePath, "KEY=value\n");
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nKEY=value\n"
+    );
 
     mockProvider.cat.mockRejectedValueOnce(new Error("Not found"));
     mockProvider.push.mockResolvedValueOnce({ version: 1, name: "my-app" });
@@ -159,6 +165,18 @@ describe("pushCommand", () => {
     );
   });
 
+  it("should block push when envhub header is missing", async () => {
+    await fs.writeFile(envFilePath, "KEY=value\n");
+
+    await pushCommand("my-app", envFilePath, {});
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Missing envhub header")
+    );
+    expect(process.exit).toHaveBeenCalledWith(1);
+    expect(mockProvider.push).not.toHaveBeenCalled();
+  });
+
   it("should strip envhub header before push", async () => {
     await fs.writeFile(
       envFilePath,
@@ -173,6 +191,40 @@ describe("pushCommand", () => {
 
     expect(mockProvider.push).toHaveBeenCalledWith(
       "my-app",
+      "KEY=value\n",
+      expect.objectContaining({ force: true })
+    );
+  });
+
+  it("should block push when envhub header environment does not match target secret", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app-prod\n\nKEY=value\n"
+    );
+
+    await pushCommand("my-app-dev", envFilePath, {});
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Environment mismatch")
+    );
+    expect(process.exit).toHaveBeenCalledWith(1);
+    expect(mockProvider.push).not.toHaveBeenCalled();
+  });
+
+  it("should allow envhub header mismatch when --force is used", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app-prod\n\nKEY=value\n"
+    );
+
+    mockProvider.cat.mockRejectedValueOnce(new Error("Not found"));
+    mockProvider.push.mockResolvedValueOnce({ version: 1, name: "my-app-dev" });
+    mockProvider.getVersion.mockRejectedValueOnce(new Error("Not found"));
+
+    await pushCommand("my-app-dev", envFilePath, { force: true });
+
+    expect(mockProvider.push).toHaveBeenCalledWith(
+      "my-app-dev",
       "KEY=value\n",
       expect.objectContaining({ force: true })
     );

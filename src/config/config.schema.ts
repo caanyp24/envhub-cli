@@ -79,6 +79,12 @@ export function validateConfig(config: Partial<EnvhubConfig>): string[] {
     errors.push("'provider' is required in configuration.");
   }
 
+  if (config.prefix === undefined) {
+    errors.push("'prefix' is required in configuration.");
+  } else if (!config.prefix.trim()) {
+    errors.push("'prefix' must be a non-empty string.");
+  }
+
   if (config.provider && !["aws", "azure", "gcp"].includes(config.provider)) {
     errors.push(`Unknown provider '${config.provider}'. Supported: aws, azure, gcp`);
   }

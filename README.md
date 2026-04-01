@@ -29,6 +29,7 @@
 | [delete](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/delete.md) | Delete a secret |
 | [grant](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/grant.md) | Grant a user access to a secret (AWS only) |
 | [revoke](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/revoke.md) | Revoke a user's access to a secret (AWS only) |
+| [doctor](https://github.com/caanyp24/envhub-cli/blob/main/docs/commands/doctor.md) | Run setup and provider health checks |
 
 ### Architecture
 

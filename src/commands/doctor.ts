@@ -55,6 +55,8 @@ type DoctorProgressEvent =
   | { phase: "end"; check: DoctorCheckResult };
 type DoctorProgressHandler = (event: DoctorProgressEvent) => void;
 
+type DoctorCheckGroup = "Version" | "Configuration" | "Provider" | "Permissions";
+
 class OperationTimeoutError extends Error {
   constructor(operation: string, timeoutMs: number) {
     super(`${operation} timed out after ${Math.floor(timeoutMs / 1000)}s.`);
@@ -97,6 +99,24 @@ function iconForStatus(status: DoctorCheckStatus): string {
   if (status === "pass") return chalk.green("✔");
   if (status === "warn") return chalk.yellow("⚠");
   return chalk.red("✖");
+}
+
+function groupForCheck(id: DoctorCheckId): DoctorCheckGroup {
+  if (id === "version.check") return "Version";
+  if (id === "config.load" || id === "prefix") return "Configuration";
+  if (
+    id === "provider.init" ||
+    id === "provider.identity" ||
+    id === "provider.identity_verified" ||
+    id === "provider.reachability_and_auth"
+  ) {
+    return "Provider";
+  }
+  return "Permissions";
+}
+
+function renderGroupHeader(group: DoctorCheckGroup): void {
+  logger.log(chalk.bold.cyan(`  ${group}`));
 }
 
 function summarizeChecks(checks: DoctorCheckResult[]): DoctorSummary {
@@ -511,7 +531,14 @@ function formatCheckMessage(check: DoctorCheckResult): string {
 }
 
 function logCheckLine(check: DoctorCheckResult): void {
-  logger.log(`${iconForStatus(check.status)} ${check.id}: ${formatCheckMessage(check)}`);
+  const formatted = formatCheckMessage(check);
+  const lines = formatted.split("\n");
+  const firstLine = lines[0] ?? "";
+  logger.log(`  ${iconForStatus(check.status)} ${check.id}: ${firstLine}`);
+
+  for (let i = 1; i < lines.length; i++) {
+    logger.log(`  ${lines[i]}`);
+  }
 }
 
 function renderHumanHeader(): void {
@@ -519,14 +546,19 @@ function renderHumanHeader(): void {
   logger.newline();
   logger.log(chalk.bold.cyan(`  ${title}`));
   logger.log(chalk.dim(`  ${"─".repeat(title.length)}`));
-  logger.dim("  Quick health check for config, provider access, and tracked secret readability.");
+  logger.dim(
+    "  Quick health check for version, config, provider identity/access, and tracked secret readability."
+  );
   logger.newline();
 }
 
 function renderHumanSummary(report: DoctorReport): void {
   logger.newline();
+  logger.log(chalk.bold("  Summary"));
   logger.log(
-    `Summary: ${report.summary.pass} passed, ${report.summary.warn} warning(s), ${report.summary.fail} failed`
+    `    ${chalk.green(`${report.summary.pass} passed`)}, ` +
+      `${chalk.yellow(`${report.summary.warn} warning(s)`)}, ` +
+      `${chalk.red(`${report.summary.fail} failed`)}`
   );
 
   const hintedChecks = report.checks.filter(
@@ -535,6 +567,7 @@ function renderHumanSummary(report: DoctorReport): void {
   );
   if (hintedChecks.length > 0) {
     logger.newline();
+    logger.log(chalk.bold.yellow("  Hints"));
     const groupedHints = new Map<string, string[]>();
     for (const check of hintedChecks) {
       const detail = check.details as string;
@@ -544,7 +577,7 @@ function renderHumanSummary(report: DoctorReport): void {
     }
 
     for (const [detail, checkIds] of groupedHints) {
-      logger.log(`Hint (${checkIds.join(", ")}): ${detail}`);
+      logger.log(`    ${chalk.yellow("⚠")} (${checkIds.join(", ")}): ${detail}`);
     }
   }
 
@@ -1104,6 +1137,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
  */
 export async function doctorCommand(options: DoctorCommandOptions): Promise<void> {
   let currentSpinner: Ora | null = null;
+  let currentGroup: DoctorCheckGroup | null = null;
   if (!options.json) {
     renderHumanHeader();
   }
@@ -1117,6 +1151,14 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
       if (currentSpinner) {
         currentSpinner.stop();
         currentSpinner = null;
+      }
+      const group = groupForCheck(event.check.id);
+      if (group !== currentGroup) {
+        if (currentGroup !== null) {
+          logger.newline();
+        }
+        renderGroupHeader(group);
+        currentGroup = group;
       }
       logCheckLine(event.check);
     };

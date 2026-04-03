@@ -38,7 +38,7 @@ envhub doctor [options]
 ```text
 envhub doctor
 ─────────────
-Quick health check for config, provider access, and tracked secret readability.
+Quick health check for version, config, provider identity/access, and tracked secret readability.
 
 ✔ version.check: Version is up to date (0.3.1).
 ✔ config.load: Configuration loaded from /project/.envhubrc.json.

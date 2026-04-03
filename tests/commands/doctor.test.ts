@@ -100,7 +100,7 @@ describe("doctorCommand", () => {
     await doctorCommand({});
 
     expect(mockProvider.list).toHaveBeenCalledTimes(1);
-    expect(logger.log).toHaveBeenCalledWith(expect.stringContaining("Summary:"));
+    expect(logger.log).toHaveBeenCalledWith("  Summary");
     expect(process.exit).not.toHaveBeenCalled();
   });
 
@@ -157,7 +157,7 @@ describe("doctorCommand", () => {
     );
     expect(logger.log).toHaveBeenCalledWith(
       expect.stringContaining(
-        "Hint (provider.reachability_and_auth, provider.list_rights)"
+        "(provider.reachability_and_auth, provider.list_rights)"
       )
     );
   });

@@ -53,10 +53,11 @@ export function createProgram(): Command {
   program
     .command("pull")
     .description("Pull the latest .env file from the cloud provider")
-    .argument("<name>", "Name of the secret to pull")
-    .argument("<file>", "Path to write the .env file to")
-    .action(async (name: string, file: string) => {
-      await pullCommand(name, file);
+    .argument("[name]", "Name of the secret to pull")
+    .argument("[file]", "Path to write the .env file to")
+    .option("--dry-run", "Show the pull diff without writing the local file", false)
+    .action(async (name: string | undefined, file: string | undefined, options) => {
+      await pullCommand(name, file, options);
     });
 
   // ── cat ─────────────────────────────────────────────────────────

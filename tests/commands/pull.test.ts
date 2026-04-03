@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
+import { configManager } from "../../src/config/config.js";
 
 // ── Hoisted mocks ────────────────────────────────────────────────
 
@@ -135,5 +136,99 @@ describe("pullCommand", () => {
       '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nNEW_KEY="new_value"\n'
     );
     expect(content).not.toContain("OLD_KEY");
+  });
+
+  it("should show diff and version check in dry-run without writing file", async () => {
+    await fs.writeFile(
+      envFilePath,
+      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\nDB_PORT="5432"\n'
+    );
+
+    vi.mocked(configManager.getTrackedVersion).mockReturnValueOnce(1);
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "DB_HOST=localhost\nDB_PORT=6543\nNEW_KEY=new_value\n",
+      version: 3,
+      name: "my-app",
+    });
+
+    await pullCommand("my-app", envFilePath, { dryRun: true });
+
+    const content = await fs.readFile(envFilePath, "utf-8");
+    expect(content).toBe(
+      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\nDB_PORT="5432"\n'
+    );
+
+    expect(configManager.updateSecret).not.toHaveBeenCalled();
+    expect(mockSpinner.succeed).toHaveBeenCalledWith(
+      expect.stringContaining("Dry-run pull 'my-app' (v3)")
+    );
+  });
+
+  it("should infer secret name from local header when dry-run is used without name", async () => {
+    await fs.writeFile(
+      envFilePath,
+      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\n'
+    );
+
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "DB_HOST=localhost\n",
+      version: 9,
+      name: "my-app",
+    });
+
+    await pullCommand(undefined, envFilePath, { dryRun: true });
+
+    expect(mockProvider.pull).toHaveBeenCalledWith("my-app");
+    expect(mockSpinner.succeed).toHaveBeenCalledWith(
+      expect.stringContaining("Dry-run pull 'my-app' (v9)")
+    );
+  });
+
+  it("should report no changes in dry-run mode", async () => {
+    await fs.writeFile(
+      envFilePath,
+      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\n'
+    );
+
+    vi.mocked(configManager.getTrackedVersion).mockReturnValueOnce(2);
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "DB_HOST=localhost\n",
+      version: 2,
+      name: "my-app",
+    });
+
+    await pullCommand("my-app", envFilePath, { dryRun: true });
+
+    expect(configManager.updateSecret).not.toHaveBeenCalled();
+    expect(mockSpinner.succeed).toHaveBeenCalledWith(
+      expect.stringContaining("Dry-run pull 'my-app' (v2)")
+    );
+  });
+
+  it("should fail dry-run when local file does not exist", async () => {
+    vi.mocked(configManager.getTrackedVersion).mockReturnValueOnce(0);
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "DB_HOST=localhost\n",
+      version: 1,
+      name: "my-app",
+    });
+
+    await pullCommand("my-app", envFilePath, { dryRun: true });
+
+    expect(mockSpinner.fail).not.toHaveBeenCalled();
+    expect(mockProvider.pull).not.toHaveBeenCalled();
+    expect(process.exit).toHaveBeenCalledWith(1);
+    expect(configManager.updateSecret).not.toHaveBeenCalled();
+  });
+
+  it("should fail dry-run without name when local header is missing", async () => {
+    await fs.writeFile(envFilePath, 'DB_HOST="localhost"\n');
+
+    await pullCommand(undefined, envFilePath, { dryRun: true });
+
+    expect(mockProvider.pull).not.toHaveBeenCalled();
+    expect(mockSpinner.fail).not.toHaveBeenCalled();
+    expect(process.exit).toHaveBeenCalledWith(1);
+    expect(configManager.updateSecret).not.toHaveBeenCalled();
   });
 });

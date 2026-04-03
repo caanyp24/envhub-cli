@@ -11,6 +11,15 @@ export interface EnvChange {
   newValue?: string;
 }
 
+export interface FormatChangesOptions {
+  /** Whether values should be masked in output. */
+  maskValues?: boolean;
+  /** Prefix added to each rendered line (for indentation). */
+  indent?: string;
+  /** Show old and new values for changed keys. */
+  showChangedValues?: boolean;
+}
+
 /**
  * Compare two .env contents and return the differences.
  *
@@ -63,11 +72,17 @@ export function diffEnvContents(
 /**
  * Format changes into a human-readable string for terminal display.
  */
-export function formatChanges(changes: EnvChange[]): string {
+export function formatChanges(
+  changes: EnvChange[],
+  options: FormatChangesOptions = {}
+): string {
   if (changes.length === 0) {
     return "No changes detected.";
   }
 
+  const maskValues = options.maskValues ?? true;
+  const indent = options.indent ?? "";
+  const showChangedValues = options.showChangedValues ?? false;
   const lines: string[] = [];
 
   const added = changes.filter((c) => c.type === "added");
@@ -75,23 +90,35 @@ export function formatChanges(changes: EnvChange[]): string {
   const changed = changes.filter((c) => c.type === "changed");
 
   if (added.length > 0) {
-    lines.push(`  🟢 Added (${added.length}):`);
+    lines.push(`${indent}🟢 Added (${added.length}):`);
     for (const c of added) {
-      lines.push(chalk.green(`     + ${c.key}=${maskValue(c.newValue ?? "")}`));
+      const value = c.newValue ?? "";
+      const renderedValue = maskValues ? maskValue(value) : value;
+      lines.push(chalk.green(`${indent}  + ${c.key}=${renderedValue}`));
     }
   }
 
   if (removed.length > 0) {
-    lines.push(`  🔴 Removed (${removed.length}):`);
+    lines.push(`${indent}🔴 Removed (${removed.length}):`);
     for (const c of removed) {
-      lines.push(chalk.red(`     - ${c.key}`));
+      lines.push(chalk.red(`${indent}  - ${c.key}`));
     }
   }
 
   if (changed.length > 0) {
-    lines.push(`  🟡 Changed (${changed.length}):`);
+    lines.push(`${indent}🟡 Changed (${changed.length}):`);
     for (const c of changed) {
-      lines.push(chalk.yellow(`     ~ ${c.key}`));
+      if (showChangedValues) {
+        const oldValue = c.oldValue ?? "";
+        const newValue = c.newValue ?? "";
+        const renderedOld = maskValues ? maskValue(oldValue) : oldValue;
+        const renderedNew = maskValues ? maskValue(newValue) : newValue;
+        lines.push(
+          chalk.yellow(`${indent}  ~ ${c.key}: ${renderedOld} -> ${renderedNew}`)
+        );
+      } else {
+        lines.push(chalk.yellow(`${indent}  ~ ${c.key}`));
+      }
     }
   }
 

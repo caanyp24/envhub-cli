@@ -2,7 +2,11 @@ import * as path from "node:path";
 import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { VersionControl } from "../versioning/version-control.js";
-import { writeEnvFileRaw, parseEnvContent } from "../utils/env-parser.js";
+import {
+  writeEnvFileRaw,
+  parseEnvContent,
+  quoteAllEnvValues,
+} from "../utils/env-parser.js";
 import { addEnvhubHeader } from "../utils/envhub-header.js";
 import { logger } from "../utils/logger.js";
 
@@ -26,8 +30,10 @@ export async function pullCommand(
 
   try {
     const result = await provider.pull(secretName);
-    const keyCount = parseEnvContent(result.content).size;
-    const localContent = addEnvhubHeader(secretName, result.content);
+    const parsedEntries = parseEnvContent(result.content);
+    const keyCount = parsedEntries.size;
+    const normalizedContent = quoteAllEnvValues(result.content);
+    const localContent = addEnvhubHeader(secretName, normalizedContent);
 
     // Write the file
     await writeEnvFileRaw(resolvedPath, localContent);

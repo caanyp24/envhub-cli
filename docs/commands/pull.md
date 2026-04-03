@@ -43,3 +43,5 @@ One line. Secret name, version, file path, number of keys. That's it.
 
 - Pull always overwrites the local file without asking for confirmation. Pulling is a conscious action.
 - Use `envhub cat <name>` to inspect a secret before pulling if needed.
+- Comment lines are pulled together with key/value entries because they are stored as part of the secret content.
+- Pulled values are written with double quotes (for example `KEY="value"`).

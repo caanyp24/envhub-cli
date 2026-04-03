@@ -20,6 +20,11 @@ export interface ParsedEnv {
   lines: string[];
 }
 
+export interface SerializeEnvOptions {
+  /** Quote all values, even plain ones. */
+  quoteAllValues?: boolean;
+}
+
 /**
  * Parse .env file content into structured entries.
  * Handles comments, blank lines, quoted values, and multi-line values.
@@ -65,17 +70,61 @@ export function parseEnvContent(content: string): Map<string, string> {
 /**
  * Serialize a Map of key-value pairs back to .env format.
  */
-export function serializeEnv(entries: Map<string, string>): string {
+export function serializeEnv(
+  entries: Map<string, string>,
+  options: SerializeEnvOptions = {}
+): string {
   const lines: string[] = [];
+  const quoteAllValues = options.quoteAllValues ?? false;
 
   for (const [key, value] of entries) {
-    // Quote values that contain spaces, #, or special characters
-    const needsQuoting = /[\s#"'\\]/.test(value) || value === "";
-    const formattedValue = needsQuoting ? `"${value}"` : value;
+    // Quote values that contain spaces, #, or special characters,
+    // or when quoteAllValues is requested.
+    const needsQuoting = quoteAllValues || /[\s#"'\\]/.test(value) || value === "";
+    const escapedValue = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const formattedValue = needsQuoting ? `"${escapedValue}"` : value;
     lines.push(`${key}=${formattedValue}`);
   }
 
   return lines.join("\n") + "\n";
+}
+
+/**
+ * Quote all env values in raw content while preserving comments and blank lines.
+ */
+export function quoteAllEnvValues(content: string): string {
+  const lines = content.split("\n");
+
+  const quotedLines = lines.map((line) => {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith("#")) {
+      return line;
+    }
+
+    const eqIndex = line.indexOf("=");
+    if (eqIndex === -1) {
+      return line;
+    }
+
+    const key = line.slice(0, eqIndex).trim();
+    if (!key) {
+      return line;
+    }
+
+    let value = line.slice(eqIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    const escapedValue = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return `${key}="${escapedValue}"`;
+  });
+
+  return quotedLines.join("\n");
 }
 
 /**

@@ -128,3 +128,9 @@ If the header exists but the environment does not match the target secret, push 
 ```
 
 This helps prevent accidentally pushing the wrong environment file.
+
+## Comments in `.env`
+
+Comment lines (for example `# Database`) are stored as part of the secret content and are preserved on later pulls.
+If you only change comments, push may report "No changes detected" because diff detection is key/value-based.
+Use `--force` when you want to push comment-only edits.

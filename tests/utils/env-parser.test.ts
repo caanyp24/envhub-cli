@@ -5,6 +5,7 @@ import * as os from "node:os";
 import {
   parseEnvContent,
   serializeEnv,
+  quoteAllEnvValues,
   readEnvFile,
   readEnvFileRaw,
   writeEnvFile,
@@ -106,6 +107,28 @@ describe("parseEnvContent", () => {
   });
 });
 
+// ── quoteAllEnvValues ────────────────────────────────────────────
+
+describe("quoteAllEnvValues", () => {
+  it("should quote plain values", () => {
+    const content = "A=1\nB=test\n";
+    const result = quoteAllEnvValues(content);
+    expect(result).toBe('A="1"\nB="test"\n');
+  });
+
+  it("should preserve comments and blank lines", () => {
+    const content = "# Comment\nA=1\n\n# Another\nB=2\n";
+    const result = quoteAllEnvValues(content);
+    expect(result).toBe('# Comment\nA="1"\n\n# Another\nB="2"\n');
+  });
+
+  it("should normalize already quoted values without double-quoting", () => {
+    const content = 'A="one"\nB=\'two\'\n';
+    const result = quoteAllEnvValues(content);
+    expect(result).toBe('A="one"\nB="two"\n');
+  });
+});
+
 // ── serializeEnv ─────────────────────────────────────────────────
 
 describe("serializeEnv", () => {
@@ -146,6 +169,21 @@ describe("serializeEnv", () => {
     const entries = new Map([["API_KEY", "sk_test_abc123"]]);
     const result = serializeEnv(entries);
     expect(result).toBe("API_KEY=sk_test_abc123\n");
+  });
+
+  it("should quote all values when quoteAllValues is enabled", () => {
+    const entries = new Map([
+      ["API_KEY", "sk_test_abc123"],
+      ["PORT", "3000"],
+    ]);
+    const result = serializeEnv(entries, { quoteAllValues: true });
+    expect(result).toBe('API_KEY="sk_test_abc123"\nPORT="3000"\n');
+  });
+
+  it("should escape double quotes and backslashes in quoted values", () => {
+    const entries = new Map([["KEY", 'say "hi" \\ now']]);
+    const result = serializeEnv(entries, { quoteAllValues: true });
+    expect(result).toBe('KEY="say \\"hi\\" \\\\ now"\n');
   });
 });
 

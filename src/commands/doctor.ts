@@ -435,7 +435,16 @@ async function runVersionCheck(): Promise<DoctorCheckResult> {
   const packageName = pkg.name;
 
   try {
-    const response = await fetch(`https://registry.npmjs.org/${packageName}/latest`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`https://registry.npmjs.org/${packageName}/latest`, {
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!response.ok) {
       return {
         id: "version.check",
@@ -476,7 +485,17 @@ async function runVersionCheck(): Promise<DoctorCheckResult> {
       status: "pass",
       message: `Version is up to date (${localVersion}).`,
     };
-  } catch {
+  } catch (error) {
+    if (isTimeoutError(error) || (error instanceof Error && error.name === "AbortError")) {
+      return {
+        id: "version.check",
+        title: "Version check",
+        status: "warn",
+        message:
+          `Installed envhub version: ${localVersion} ` +
+          "(latest version check timed out after 10s).",
+      };
+    }
     return {
       id: "version.check",
       title: "Version check",

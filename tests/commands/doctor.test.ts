@@ -65,13 +65,28 @@ import { configManager } from "../../src/config/config.js";
 import { ProviderFactory } from "../../src/providers/provider.factory.js";
 import { logger } from "../../src/utils/logger.js";
 
+const defaultLoadedConfig = {
+  provider: "aws" as const,
+  prefix: "envhub-",
+  aws: { profile: "test", region: "eu-central-1" },
+  secrets: {},
+};
+
+function applyDefaultMocks(): void {
+  vi.mocked(configManager.load).mockResolvedValue(defaultLoadedConfig);
+  vi.mocked(configManager.getConfigPath).mockReturnValue("/tmp/.envhubrc.json");
+  vi.mocked(ProviderFactory.createProvider).mockReturnValue(mockProvider as any);
+  vi.mocked(logger.spinner).mockReturnValue(mockSpinner as any);
+}
+
 describe("doctorCommand", () => {
   const originalExit = process.exit;
   const originalConsoleLog = console.log;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    applyDefaultMocks();
     process.exit = vi.fn() as any;
     console.log = vi.fn();
     global.fetch = vi.fn().mockResolvedValue({
@@ -248,10 +263,22 @@ describe("runDoctorChecks", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
+    vi.resetAllMocks();
+    applyDefaultMocks();
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ version: "0.3.1" }),
     }) as any;
+    mockStsSend.mockResolvedValue({
+      Account: "123456789012",
+      Arn: "arn:aws:iam::123456789012:user/test-user",
+    });
+    mockExecFile.mockImplementation((...args: any[]) => {
+      const callback = args[args.length - 1];
+      callback(null, { stdout: "", stderr: "" });
+    });
+    mockProvider.list.mockResolvedValue([]);
+    mockProvider.cat.mockResolvedValue("KEY=value");
   });
 
   afterEach(() => {

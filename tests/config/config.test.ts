@@ -82,9 +82,10 @@ describe("ConfigManager", () => {
       await expect(manager.load()).rejects.toThrow("Invalid configuration");
     });
 
-    it("should merge with DEFAULT_CONFIG values", async () => {
+    it("should merge with DEFAULT_CONFIG values for optional fields", async () => {
       const minimalConfig = {
         provider: "aws",
+        prefix: "custom-",
         aws: { profile: "dev", region: "us-east-1" },
       };
       await fs.writeFile(
@@ -95,8 +96,23 @@ describe("ConfigManager", () => {
       const manager = new ConfigManager();
       const config = await manager.load();
 
-      expect(config.prefix).toBe("envhub-");
+      expect(config.prefix).toBe("custom-");
       expect(config.secrets).toEqual({});
+    });
+
+    it("should throw when prefix is missing", async () => {
+      const noPrefixConfig = {
+        provider: "aws",
+        aws: { profile: "dev", region: "us-east-1" },
+        secrets: {},
+      };
+      await fs.writeFile(
+        path.join(tmpDir, ".envhubrc.json"),
+        JSON.stringify(noPrefixConfig)
+      );
+
+      const manager = new ConfigManager();
+      await expect(manager.load()).rejects.toThrow("'prefix' is required");
     });
   });
 

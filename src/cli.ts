@@ -8,6 +8,7 @@ import { listCommand } from "./commands/list.js";
 import { deleteCommand } from "./commands/delete.js";
 import { grantCommand } from "./commands/grant.js";
 import { revokeCommand } from "./commands/revoke.js";
+import { doctorCommand } from "./commands/doctor.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json") as { version: string };
@@ -110,6 +111,16 @@ export function createProgram(): Command {
     .argument("<user>", "IAM username or ARN of the user to revoke access")
     .action(async (name: string, user: string) => {
       await revokeCommand(name, user);
+    });
+
+  // ── doctor ──────────────────────────────────────────────────────
+
+  program
+    .command("doctor")
+    .description("Run health checks for envhub configuration and provider access")
+    .option("--json", "Output checks as JSON for CI parsing", false)
+    .action(async (options) => {
+      await doctorCommand(options);
     });
 
   return program;

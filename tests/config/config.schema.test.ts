@@ -22,6 +22,21 @@ describe("validateConfig", () => {
     expect(errors).toContain("'provider' is required in configuration.");
   });
 
+  it("should require a prefix", () => {
+    const errors = validateConfig({ provider: "aws", secrets: {} });
+    expect(errors).toContain("'prefix' is required in configuration.");
+  });
+
+  it("should reject an empty prefix", () => {
+    const errors = validateConfig({
+      provider: "aws",
+      prefix: "   ",
+      aws: { profile: "default", region: "eu-central-1" },
+      secrets: {},
+    });
+    expect(errors).toContain("'prefix' must be a non-empty string.");
+  });
+
   it("should reject an unknown provider", () => {
     const errors = validateConfig({ provider: "firebase" as any, secrets: {} });
     expect(errors.some((e) => e.includes("Unknown provider"))).toBe(true);
@@ -78,6 +93,7 @@ describe("validateConfig", () => {
   it("should return no errors for a valid GCP config", () => {
     const errors = validateConfig({
       provider: "gcp",
+      prefix: "envhub-",
       gcp: { projectId: "envhub-project-123" },
       secrets: {},
     });

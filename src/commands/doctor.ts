@@ -4,12 +4,15 @@ import type { EnvhubConfig } from "../config/config.schema.js";
 import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { promisify } from "node:util";
+import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
+import { fromIni } from "@aws-sdk/credential-providers";
 import chalk from "chalk";
 import type { Ora } from "ora";
 import { logger } from "../utils/logger.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../../package.json") as { version: string; name: string };
+const CHECK_TIMEOUT_MS = 10_000;
 
 type DoctorCheckStatus = "pass" | "warn" | "fail";
 
@@ -20,6 +23,7 @@ interface DoctorCheckResult {
     | "prefix"
     | "provider.init"
     | "provider.identity"
+    | "provider.identity_verified"
     | "provider.reachability_and_auth"
     | "provider.list_rights"
     | "provider.read_rights";
@@ -50,6 +54,44 @@ type DoctorProgressEvent =
   | { phase: "start"; id: DoctorCheckId; title: string }
   | { phase: "end"; check: DoctorCheckResult };
 type DoctorProgressHandler = (event: DoctorProgressEvent) => void;
+
+class OperationTimeoutError extends Error {
+  constructor(operation: string, timeoutMs: number) {
+    super(`${operation} timed out after ${Math.floor(timeoutMs / 1000)}s.`);
+    this.name = "OperationTimeoutError";
+  }
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    error.name === "OperationTimeoutError" ||
+    message.includes("timed out") ||
+    message.includes("etimedout")
+  );
+}
+
+async function withTimeout<T>(
+  operation: string,
+  task: Promise<T>,
+  timeoutMs: number = CHECK_TIMEOUT_MS
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new OperationTimeoutError(operation, timeoutMs));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([task, timeoutPromise]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
 
 function iconForStatus(status: DoctorCheckStatus): string {
   if (status === "pass") return chalk.green("✔");
@@ -132,7 +174,7 @@ async function resolveGcpProjectName(projectId: string): Promise<string | null> 
       projectId,
       "--format=value(name)",
     ], {
-      timeout: 4000,
+      timeout: CHECK_TIMEOUT_MS,
     });
 
     const name = stdout.trim();
@@ -140,6 +182,203 @@ async function resolveGcpProjectName(projectId: string): Promise<string | null> 
   } catch {
     return null;
   }
+}
+
+async function getGcloudActiveAccount(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("gcloud", [
+      "auth",
+      "list",
+      "--filter=status:ACTIVE",
+      "--format=value(account)",
+    ], { timeout: CHECK_TIMEOUT_MS });
+    const account = stdout.trim();
+    return account.length > 0 ? account : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getGcloudActiveProject(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("gcloud", [
+      "config",
+      "get-value",
+      "project",
+    ], { timeout: CHECK_TIMEOUT_MS });
+    const project = stdout.trim();
+    if (!project || project === "(unset)") return null;
+    return project;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyAwsIdentity(config: EnvhubConfig): Promise<DoctorCheckResult> {
+  if (!config.aws) {
+    return {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "warn",
+      message: "Skipped because AWS configuration is incomplete.",
+      details: "Ensure 'aws.profile' and 'aws.region' are configured.",
+    };
+  }
+
+  try {
+    const client = new STSClient({
+      region: config.aws.region,
+      credentials: fromIni({ profile: config.aws.profile }),
+    });
+    const result = await withTimeout(
+      "AWS identity verification",
+      client.send(new GetCallerIdentityCommand({}))
+    );
+    if (!result.Account || !result.Arn) {
+      return {
+        id: "provider.identity_verified",
+        title: "Provider identity verified",
+        status: "warn",
+        message: "Could not fully verify AWS identity.",
+        details: "Run 'aws sts get-caller-identity' and verify your profile credentials.",
+      };
+    }
+
+    return {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "pass",
+      message: `Verified AWS identity: ${result.Arn} (account ${result.Account}).`,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown AWS identity error.";
+    if (isTimeoutError(error)) {
+      return {
+        id: "provider.identity_verified",
+        title: "Provider identity verified",
+        status: "warn",
+        message: "Could not verify AWS identity (timed out after 10s).",
+        details:
+          "Timeout while verifying AWS identity. Check network/proxy/VPN and AWS endpoint reachability.",
+      };
+    }
+    return {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "warn",
+      message: "Could not verify AWS identity.",
+      details:
+        `${message} Re-authenticate or verify profile '${config.aws.profile}' ` +
+        `(e.g. 'aws sts get-caller-identity --profile ${config.aws.profile}').`,
+    };
+  }
+}
+
+async function verifyGcpIdentity(config: EnvhubConfig): Promise<DoctorCheckResult> {
+  if (!config.gcp) {
+    return {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "warn",
+      message: "Skipped because GCP configuration is incomplete.",
+      details: "Ensure 'gcp.projectId' is configured.",
+    };
+  }
+
+  const [activeAccount, activeProject] = await Promise.all([
+    getGcloudActiveAccount(),
+    getGcloudActiveProject(),
+  ]);
+
+  if (!activeAccount || !activeProject) {
+    return {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "warn",
+      message: "Could not verify GCP identity.",
+      details:
+        "Run 'gcloud auth login' and ensure an active project is set " +
+        "('gcloud config set project <PROJECT_ID>').",
+    };
+  }
+
+  if (activeProject !== config.gcp.projectId) {
+    return {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "fail",
+      message:
+        `GCP context mismatch: active project '${activeProject}' does not match configured project '${config.gcp.projectId}'.`,
+      details: "Switch gcloud project or update '.envhubrc.json' to the intended project.",
+    };
+  }
+
+  return {
+    id: "provider.identity_verified",
+    title: "Provider identity verified",
+    status: "pass",
+    message: `Verified GCP identity: ${activeAccount} (project ${activeProject}).`,
+  };
+}
+
+async function verifyAzureIdentity(): Promise<DoctorCheckResult> {
+  try {
+    const { stdout } = await execFileAsync("az", ["account", "show", "--output", "json"], {
+      timeout: CHECK_TIMEOUT_MS,
+    });
+    const payload = JSON.parse(stdout) as {
+      id?: string;
+      tenantId?: string;
+      user?: { name?: string };
+    };
+
+    if (!payload.id || !payload.tenantId) {
+      return {
+        id: "provider.identity_verified",
+        title: "Provider identity verified",
+        status: "warn",
+        message: "Could not fully verify Azure identity.",
+        details: "Run 'az account show' and verify account context.",
+      };
+    }
+
+    const userName = payload.user?.name ?? "unknown-user";
+    return {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "pass",
+      message:
+        `Verified Azure identity: ${userName} (tenant ${payload.tenantId}, subscription ${payload.id}).`,
+    };
+  } catch {
+    return {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "warn",
+      message: "Could not verify Azure identity (timed out or unavailable).",
+      details:
+        "Run 'az login' and verify tenant/subscription context with 'az account show'.",
+    };
+  }
+}
+
+async function verifyProviderIdentity(config: EnvhubConfig): Promise<DoctorCheckResult> {
+  if (config.provider === "aws") {
+    return verifyAwsIdentity(config);
+  }
+  if (config.provider === "gcp") {
+    return verifyGcpIdentity(config);
+  }
+  if (config.provider === "azure") {
+    return verifyAzureIdentity();
+  }
+
+  return {
+    id: "provider.identity_verified",
+    title: "Provider identity verified",
+    status: "warn",
+    message: "Provider identity verification is not available for this provider.",
+  };
 }
 
 function parseSemver(version: string): [number, number, number] | null {
@@ -292,8 +531,7 @@ function renderHumanSummary(report: DoctorReport): void {
 
   const hintedChecks = report.checks.filter(
     (check) =>
-      !!check.details &&
-      (check.status === "fail" || check.id === "provider.read_rights")
+      !!check.details && check.status !== "pass"
   );
   if (hintedChecks.length > 0) {
     logger.newline();
@@ -414,6 +652,15 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
     checks.push(providerIdentityCheck);
     progress?.({ phase: "end", check: providerIdentityCheck });
 
+    const providerIdentityVerifiedCheck: DoctorCheckResult = {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "warn",
+      message: "Skipped because provider could not be initialized.",
+    };
+    checks.push(providerIdentityVerifiedCheck);
+    progress?.({ phase: "end", check: providerIdentityVerifiedCheck });
+
     const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
@@ -492,6 +739,15 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
     };
     checks.push(providerIdentityCheck);
     progress?.({ phase: "end", check: providerIdentityCheck });
+
+    const providerIdentityVerifiedCheck: DoctorCheckResult = {
+      id: "provider.identity_verified",
+      title: "Provider identity verified",
+      status: "warn",
+      message: "Skipped because provider could not be initialized.",
+    };
+    checks.push(providerIdentityVerifiedCheck);
+    progress?.({ phase: "end", check: providerIdentityVerifiedCheck });
 
     const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
@@ -580,13 +836,25 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
     });
   }
 
+  progress?.({
+    phase: "start",
+    id: "provider.identity_verified",
+    title: "Provider identity verified",
+  });
+  const identityVerifiedCheck = await verifyProviderIdentity(config);
+  checks.push(identityVerifiedCheck);
+  progress?.({
+    phase: "end",
+    check: identityVerifiedCheck,
+  });
+
   try {
     progress?.({
       phase: "start",
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
     });
-    await provider.list();
+    await withTimeout("Provider list check", provider.list());
     const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
@@ -644,7 +912,10 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       let firstFailureMessage = "";
       for (const secretName of trackedSecretNames) {
         try {
-          await provider.cat(secretName);
+          await withTimeout(
+            `Provider read check for '${secretName}'`,
+            provider.cat(secretName)
+          );
           passedSecrets.push(secretName);
         } catch (error) {
           failedSecrets.push(secretName);
@@ -674,12 +945,16 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
         const classification = classifyProviderFailure(provider.name, firstFailureMessage);
         if (failedSecrets.length === trackedSecretNames.length) {
           const failedLines = failedSecrets.map((name) => `    ✖ ${name}`);
+          const allFailedDueToTimeout = isTimeoutError(
+            firstFailureMessage ? new Error(firstFailureMessage) : null
+          );
           const readCheck: DoctorCheckResult = {
             id: "provider.read_rights",
             title: "Provider read rights",
-            status: "fail",
+            status: allFailedDueToTimeout ? "warn" : "fail",
             message:
-              `Read checks failed for all ${trackedSecretNames.length} tracked secrets.\n` +
+              `${allFailedDueToTimeout ? "Read checks timed out for all" : "Read checks failed for all"} ` +
+              `${trackedSecretNames.length} tracked secrets.\n` +
               failedLines.join("\n"),
             details: classification.details,
           };
@@ -712,6 +987,61 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
     }
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : "Unknown provider error.";
+    if (isTimeoutError(error)) {
+      const reachabilityTimeoutCheck: DoctorCheckResult = {
+        id: "provider.reachability_and_auth",
+        title: "Provider reachability/auth",
+        status: "warn",
+        message: "Provider reachability/auth check timed out after 10s.",
+        details:
+          "Timeout while contacting provider. Check network/proxy/VPN and retry.",
+      };
+      checks.push(reachabilityTimeoutCheck);
+      progress?.({
+        phase: "end",
+        check: reachabilityTimeoutCheck,
+      });
+
+      progress?.({
+        phase: "start",
+        id: "provider.list_rights",
+        title: "Provider list rights",
+      });
+      const listTimeoutCheck: DoctorCheckResult = {
+        id: "provider.list_rights",
+        title: "Provider list rights",
+        status: "warn",
+        message: "Skipped because list check timed out after 10s.",
+        details: "Retry when provider connectivity is stable.",
+      };
+      checks.push(listTimeoutCheck);
+      progress?.({
+        phase: "end",
+        check: listTimeoutCheck,
+      });
+
+      progress?.({
+        phase: "start",
+        id: "provider.read_rights",
+        title: "Provider read rights",
+      });
+      const readTimeoutCheck: DoctorCheckResult = {
+        id: "provider.read_rights",
+        title: "Provider read rights",
+        status: "warn",
+        message: "Skipped because provider list check timed out after 10s.",
+        details: "Retry when provider connectivity is stable.",
+      };
+      checks.push(readTimeoutCheck);
+      progress?.({
+        phase: "end",
+        check: readTimeoutCheck,
+      });
+      return {
+        checks,
+        summary: summarizeChecks(checks),
+      };
+    }
     const classification = classifyProviderFailure(provider.name, rawMessage);
     const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",

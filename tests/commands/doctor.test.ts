@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { mockProvider, mockSpinner } = vi.hoisted(() => ({
+const { mockProvider, mockSpinner, mockStsSend, mockExecFile } = vi.hoisted(() => ({
   mockProvider: {
     name: "aws",
     push: vi.fn(),
@@ -15,6 +15,19 @@ const { mockProvider, mockSpinner } = vi.hoisted(() => ({
   mockSpinner: {
     stop: vi.fn(),
   },
+  mockStsSend: vi.fn(),
+  mockExecFile: vi.fn(),
+}));
+
+vi.mock("@aws-sdk/client-sts", () => ({
+  STSClient: class {
+    send = mockStsSend;
+  },
+  GetCallerIdentityCommand: class {},
+}));
+
+vi.mock("node:child_process", () => ({
+  execFile: mockExecFile,
 }));
 
 vi.mock("../../src/config/config.js", () => ({
@@ -65,6 +78,14 @@ describe("doctorCommand", () => {
       ok: true,
       json: async () => ({ version: "0.3.1" }),
     }) as any;
+    mockStsSend.mockResolvedValue({
+      Account: "123456789012",
+      Arn: "arn:aws:iam::123456789012:user/test-user",
+    });
+    mockExecFile.mockImplementation((...args: any[]) => {
+      const callback = args[args.length - 1];
+      callback(null, { stdout: "", stderr: "" });
+    });
     mockProvider.list.mockResolvedValue([]);
     mockProvider.cat.mockResolvedValue("KEY=value");
   });
@@ -141,6 +162,21 @@ describe("doctorCommand", () => {
     );
   });
 
+  it("should keep exit code 0 when provider list check times out", async () => {
+    mockProvider.list.mockRejectedValueOnce(
+      new Error("Provider list check timed out after 10s.")
+    );
+
+    await doctorCommand({});
+
+    expect(process.exit).not.toHaveBeenCalled();
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "provider.reachability_and_auth: Provider reachability/auth check timed out after 10s."
+      )
+    );
+  });
+
   it("should keep exit code 0 on warnings only", async () => {
     vi.mocked(configManager.load).mockResolvedValueOnce({
       provider: "aws",
@@ -191,11 +227,11 @@ describe("doctorCommand", () => {
     const parsed = JSON.parse(raw);
 
     expect(parsed.summary).toEqual({
-      pass: 7,
+      pass: 8,
       warn: 1,
       fail: 0,
     });
-    expect(parsed.checks).toHaveLength(8);
+    expect(parsed.checks).toHaveLength(9);
     expect(parsed.checks[0].id).toBe("version.check");
   });
 
@@ -230,10 +266,123 @@ describe("runDoctorChecks", () => {
       "prefix",
       "provider.init",
       "provider.identity",
+      "provider.identity_verified",
       "provider.reachability_and_auth",
       "provider.list_rights",
       "provider.read_rights",
     ]);
+  });
+
+  it("should pass provider.identity_verified for AWS when STS resolves", async () => {
+    const report = await runDoctorChecks();
+    const check = report.checks.find((c) => c.id === "provider.identity_verified");
+
+    expect(check?.status).toBe("pass");
+    expect(check?.message).toContain("Verified AWS identity");
+  });
+
+  it("should warn provider.identity_verified for AWS when STS fails", async () => {
+    mockStsSend.mockRejectedValueOnce(new Error("Expired token"));
+    const report = await runDoctorChecks();
+    const check = report.checks.find((c) => c.id === "provider.identity_verified");
+
+    expect(check?.status).toBe("warn");
+    expect(check?.message).toContain("Could not verify AWS identity");
+  });
+
+  it("should warn provider.identity_verified for AWS when STS times out", async () => {
+    mockStsSend.mockRejectedValueOnce(
+      new Error("AWS identity verification timed out after 10s.")
+    );
+    const report = await runDoctorChecks();
+    const check = report.checks.find((c) => c.id === "provider.identity_verified");
+
+    expect(check?.status).toBe("warn");
+    expect(check?.message).toContain("timed out after 10s");
+  });
+
+  it("should fail provider.identity_verified for GCP when active project mismatches config", async () => {
+    vi.mocked(configManager.load).mockResolvedValueOnce({
+      provider: "gcp",
+      prefix: "envhub-",
+      gcp: { projectId: "project-config" },
+      secrets: {},
+    });
+    mockExecFile.mockImplementation((cmd: string, args: string[], options: unknown, callback: (err: Error | null, result?: { stdout: string; stderr: string }) => void) => {
+      const joined = `${cmd} ${args.join(" ")}`;
+      if (joined.includes("projects describe")) {
+        callback(null, { stdout: "My Project\n", stderr: "" });
+        return;
+      }
+      if (joined.includes("auth list")) {
+        callback(null, { stdout: "user@example.com\n", stderr: "" });
+        return;
+      }
+      if (joined.includes("config get-value project")) {
+        callback(null, { stdout: "project-active\n", stderr: "" });
+        return;
+      }
+      callback(new Error("unexpected command"));
+    });
+
+    const report = await runDoctorChecks();
+    const check = report.checks.find((c) => c.id === "provider.identity_verified");
+
+    expect(check?.status).toBe("fail");
+    expect(check?.message).toContain("mismatch");
+  });
+
+  it("should pass provider.identity_verified for GCP when account and project resolve", async () => {
+    vi.mocked(configManager.load).mockResolvedValueOnce({
+      provider: "gcp",
+      prefix: "envhub-",
+      gcp: { projectId: "project-config" },
+      secrets: {},
+    });
+    mockExecFile.mockImplementation((cmd: string, args: string[], options: unknown, callback: (err: Error | null, result?: { stdout: string; stderr: string }) => void) => {
+      const joined = `${cmd} ${args.join(" ")}`;
+      if (joined.includes("projects describe")) {
+        callback(null, { stdout: "My Project\n", stderr: "" });
+        return;
+      }
+      if (joined.includes("auth list")) {
+        callback(null, { stdout: "user@example.com\n", stderr: "" });
+        return;
+      }
+      if (joined.includes("config get-value project")) {
+        callback(null, { stdout: "project-config\n", stderr: "" });
+        return;
+      }
+      callback(new Error("unexpected command"));
+    });
+
+    const report = await runDoctorChecks();
+    const check = report.checks.find((c) => c.id === "provider.identity_verified");
+
+    expect(check?.status).toBe("pass");
+    expect(check?.message).toContain("Verified GCP identity");
+  });
+
+  it("should warn provider.identity_verified for Azure when az command fails", async () => {
+    vi.mocked(configManager.load).mockResolvedValueOnce({
+      provider: "azure",
+      prefix: "envhub-",
+      azure: { vaultUrl: "https://my-vault.vault.azure.net" },
+      secrets: {},
+    });
+    mockExecFile.mockImplementation((cmd: string, args: string[], options: unknown, callback: (err: Error | null, result?: { stdout: string; stderr: string }) => void) => {
+      if (cmd === "az" && args[0] === "account") {
+        callback(new Error("az not found"));
+        return;
+      }
+      callback(new Error("unexpected command"));
+    });
+
+    const report = await runDoctorChecks();
+    const check = report.checks.find((c) => c.id === "provider.identity_verified");
+
+    expect(check?.status).toBe("warn");
+    expect(check?.message).toContain("Could not verify Azure identity");
   });
 
   it("should verify read rights for all tracked secrets from config", async () => {

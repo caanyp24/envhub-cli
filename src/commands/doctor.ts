@@ -1,12 +1,28 @@
 import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import type { EnvhubConfig } from "../config/config.schema.js";
+import { execFile } from "node:child_process";
+import { createRequire } from "node:module";
+import { promisify } from "node:util";
+import chalk from "chalk";
+import type { Ora } from "ora";
 import { logger } from "../utils/logger.js";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../../package.json") as { version: string; name: string };
 
 type DoctorCheckStatus = "pass" | "warn" | "fail";
 
 interface DoctorCheckResult {
-  id: "config.load" | "prefix" | "provider.init" | "provider.reachability_and_auth" | "provider.rights";
+  id:
+    | "version.check"
+    | "config.load"
+    | "prefix"
+    | "provider.init"
+    | "provider.identity"
+    | "provider.reachability_and_auth"
+    | "provider.list_rights"
+    | "provider.read_rights";
   title: string;
   status: DoctorCheckStatus;
   message: string;
@@ -28,10 +44,17 @@ interface DoctorCommandOptions {
   json?: boolean;
 }
 
+const execFileAsync = promisify(execFile);
+type DoctorCheckId = DoctorCheckResult["id"];
+type DoctorProgressEvent =
+  | { phase: "start"; id: DoctorCheckId; title: string }
+  | { phase: "end"; check: DoctorCheckResult };
+type DoctorProgressHandler = (event: DoctorProgressEvent) => void;
+
 function iconForStatus(status: DoctorCheckStatus): string {
-  if (status === "pass") return "✅";
-  if (status === "warn") return "⚠️";
-  return "❌";
+  if (status === "pass") return chalk.green("✔");
+  if (status === "warn") return chalk.yellow("⚠");
+  return chalk.red("✖");
 }
 
 function summarizeChecks(checks: DoctorCheckResult[]): DoctorSummary {
@@ -101,25 +124,181 @@ function classifyProviderFailure(providerName: string, errorMessage: string): {
   };
 }
 
-function renderHumanReport(report: DoctorReport): void {
-  logger.newline();
-  logger.log("envhub doctor");
-  logger.log("─────────────");
+async function resolveGcpProjectName(projectId: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("gcloud", [
+      "projects",
+      "describe",
+      projectId,
+      "--format=value(name)",
+    ], {
+      timeout: 4000,
+    });
 
-  for (const check of report.checks) {
-    logger.log(`${iconForStatus(check.status)} ${check.id}: ${check.message}`);
+    const name = stdout.trim();
+    return name.length > 0 ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseSemver(version: string): [number, number, number] | null {
+  const core = version.trim().replace(/^v/, "").split("-")[0];
+  const parts = core.split(".");
+  if (parts.length < 3) return null;
+
+  const major = Number(parts[0]);
+  const minor = Number(parts[1]);
+  const patch = Number(parts[2]);
+
+  if ([major, minor, patch].some((n) => Number.isNaN(n))) {
+    return null;
   }
 
+  return [major, minor, patch];
+}
+
+function isVersionOlder(localVersion: string, latestVersion: string): boolean {
+  const local = parseSemver(localVersion);
+  const latest = parseSemver(latestVersion);
+
+  if (!local || !latest) {
+    return localVersion !== latestVersion;
+  }
+
+  if (local[0] !== latest[0]) return local[0] < latest[0];
+  if (local[1] !== latest[1]) return local[1] < latest[1];
+  return local[2] < latest[2];
+}
+
+async function runVersionCheck(): Promise<DoctorCheckResult> {
+  const localVersion = pkg.version;
+  const packageName = pkg.name;
+
+  try {
+    const response = await fetch(`https://registry.npmjs.org/${packageName}/latest`);
+    if (!response.ok) {
+      return {
+        id: "version.check",
+        title: "Version check",
+        status: "warn",
+        message: `Installed envhub version: ${localVersion} (latest version could not be verified).`,
+      };
+    }
+
+    const data = (await response.json()) as { version?: string };
+    const latestVersion = data.version;
+
+    if (!latestVersion) {
+      return {
+        id: "version.check",
+        title: "Version check",
+        status: "warn",
+        message: `Installed envhub version: ${localVersion} (latest version could not be verified).`,
+      };
+    }
+
+    if (isVersionOlder(localVersion, latestVersion)) {
+      return {
+        id: "version.check",
+        title: "Version check",
+        status: "warn",
+        message:
+          `Update available: ${localVersion} --> ${latestVersion}\n` +
+          "  Update (project): npm install --save-dev envhub-cli@latest\n" +
+          "  Update (global): npm install -g envhub-cli@latest\n" +
+          "  Stay current: run 'npx envhub doctor' regularly."
+      };
+    }
+
+    return {
+      id: "version.check",
+      title: "Version check",
+      status: "pass",
+      message: `Version is up to date (${localVersion}).`,
+    };
+  } catch {
+    return {
+      id: "version.check",
+      title: "Version check",
+      status: "warn",
+      message: `Installed envhub version: ${localVersion} (latest version check skipped: network unavailable).`,
+    };
+  }
+}
+
+function formatCheckMessage(check: DoctorCheckResult): string {
+  let message = check.message;
+  if (check.id === "version.check") {
+    const [firstLine, ...restLines] = message.split("\n");
+    const match = firstLine.match(/^Update available: (.+) --> (.+)$/);
+    if (match) {
+      const localVersion = chalk.yellow(match[1]);
+      const latestVersion = chalk.green(match[2]);
+      const coloredFirstLine = `Update available: ${localVersion} --> ${latestVersion}`;
+      message = [coloredFirstLine, ...restLines].join("\n");
+    }
+  }
+  if (check.id === "provider.read_rights") {
+    const lines = message.split("\n");
+    const firstLine = lines[0] ?? "";
+    const match = firstLine.match(/^(.+?)(\d+\/\d+)(.*)$/);
+    if (match) {
+      const [, before, ratio, after] = match;
+      const coloredRatio = check.status === "pass"
+        ? chalk.green(ratio)
+        : check.status === "warn"
+          ? chalk.yellow(ratio)
+          : ratio;
+      lines[0] = `${before}${coloredRatio}${after}`;
+    }
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      const passMatch = line.match(/^(\s*)✔\s(.+)$/);
+      if (passMatch) {
+        lines[i] = `${passMatch[1]}${chalk.green("✔")} ${chalk.green(passMatch[2])}`;
+        continue;
+      }
+      const failMatch = line.match(/^(\s*)✖\s(.+)$/);
+      if (failMatch) {
+        lines[i] = `${failMatch[1]}${chalk.red("✖")} ${chalk.red(failMatch[2])}`;
+      }
+    }
+
+    message = lines.join("\n");
+  }
+  return message;
+}
+
+function logCheckLine(check: DoctorCheckResult): void {
+  logger.log(`${iconForStatus(check.status)} ${check.id}: ${formatCheckMessage(check)}`);
+}
+
+function renderHumanHeader(): void {
+  const title = "envhub doctor";
+  logger.newline();
+  logger.log(chalk.bold.cyan(`  ${title}`));
+  logger.log(chalk.dim(`  ${"─".repeat(title.length)}`));
+  logger.dim("  Quick health check for config, provider access, and tracked secret readability.");
+  logger.newline();
+}
+
+function renderHumanSummary(report: DoctorReport): void {
   logger.newline();
   logger.log(
     `Summary: ${report.summary.pass} passed, ${report.summary.warn} warning(s), ${report.summary.fail} failed`
   );
 
-  const failedChecks = report.checks.filter((check) => check.status === "fail" && check.details);
-  if (failedChecks.length > 0) {
+  const hintedChecks = report.checks.filter(
+    (check) =>
+      !!check.details &&
+      (check.status === "fail" || check.id === "provider.read_rights")
+  );
+  if (hintedChecks.length > 0) {
     logger.newline();
     const groupedHints = new Map<string, string[]>();
-    for (const check of failedChecks) {
+    for (const check of hintedChecks) {
       const detail = check.details as string;
       const existing = groupedHints.get(detail) ?? [];
       existing.push(check.id);
@@ -166,53 +345,101 @@ function validatePrefix(config: EnvhubConfig): DoctorCheckResult {
   };
 }
 
-async function runDoctorChecks(): Promise<DoctorReport> {
+async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<DoctorReport> {
   const checks: DoctorCheckResult[] = [];
   let config: EnvhubConfig | null = null;
 
+  progress?.({ phase: "start", id: "version.check", title: "Version check" });
+  const versionCheck = await runVersionCheck();
+  checks.push(versionCheck);
+  progress?.({
+    phase: "end",
+    check: versionCheck,
+  });
+
   try {
+    progress?.({ phase: "start", id: "config.load", title: "Config loading" });
     config = await configManager.load();
-    checks.push({
+    const configCheck: DoctorCheckResult = {
       id: "config.load",
       title: "Config loading",
       status: "pass",
       message: `Configuration loaded from ${configManager.getConfigPath()}.`,
+    };
+    checks.push(configCheck);
+    progress?.({
+      phase: "end",
+      check: configCheck,
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown configuration error.";
-    checks.push({
+    const configCheck: DoctorCheckResult = {
       id: "config.load",
       title: "Config loading",
       status: "fail",
       message: "Failed to load envhub configuration.",
       details: `${message} Run 'envhub init' to create or repair configuration.`,
+    };
+    checks.push(configCheck);
+    progress?.({
+      phase: "end",
+      check: configCheck,
     });
 
-    checks.push({
+    const prefixCheck: DoctorCheckResult = {
       id: "prefix",
       title: "Prefix validation",
       status: "warn",
       message: "Skipped because configuration could not be loaded.",
-    });
-    checks.push({
+    };
+    checks.push(prefixCheck);
+    progress?.({ phase: "end", check: prefixCheck });
+
+    const providerInitCheck: DoctorCheckResult = {
       id: "provider.init",
       title: "Provider initialization",
       status: "warn",
       message: "Skipped because configuration could not be loaded.",
-    });
-    checks.push({
+    };
+    checks.push(providerInitCheck);
+    progress?.({ phase: "end", check: providerInitCheck });
+
+    const providerIdentityCheck: DoctorCheckResult = {
+      id: "provider.identity",
+      title: "Provider identity",
+      status: "warn",
+      message: "Skipped because provider could not be initialized.",
+    };
+    checks.push(providerIdentityCheck);
+    progress?.({ phase: "end", check: providerIdentityCheck });
+
+    const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
-    });
-    checks.push({
-      id: "provider.rights",
+    };
+    checks.push(reachabilityCheck);
+    progress?.({ phase: "end", check: reachabilityCheck });
+
+    const listRightsCheck: DoctorCheckResult = {
+      id: "provider.list_rights",
       title: "Provider list rights",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
-    });
+    };
+    checks.push(listRightsCheck);
+    progress?.({ phase: "end", check: listRightsCheck });
+
+    const readRightsCheck: DoctorCheckResult = {
+      id: "provider.read_rights",
+      title: "Provider read rights",
+      status: "warn",
+      message: "Skipped because provider could not be initialized.",
+    };
+    checks.push(readRightsCheck);
+    progress?.({ phase: "end", check: readRightsCheck });
 
     return {
       checks,
@@ -220,38 +447,78 @@ async function runDoctorChecks(): Promise<DoctorReport> {
     };
   }
 
-  checks.push(validatePrefix(config));
+  progress?.({ phase: "start", id: "prefix", title: "Prefix validation" });
+  const prefixCheck = validatePrefix(config);
+  checks.push(prefixCheck);
+  progress?.({
+    phase: "end",
+    check: prefixCheck,
+  });
 
   let provider: ReturnType<typeof ProviderFactory.createProvider> | null = null;
   try {
+    progress?.({ phase: "start", id: "provider.init", title: "Provider initialization" });
     provider = ProviderFactory.createProvider(config);
-    checks.push({
+    const initCheck: DoctorCheckResult = {
       id: "provider.init",
       title: "Provider initialization",
       status: "pass",
       message: `Provider '${provider.name}' initialized successfully.`,
+    };
+    checks.push(initCheck);
+    progress?.({
+      phase: "end",
+      check: initCheck,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown provider error.";
-    checks.push({
+    const initCheck: DoctorCheckResult = {
       id: "provider.init",
       title: "Provider initialization",
       status: "fail",
       message: "Failed to initialize provider from configuration.",
       details: `${message} Check provider-specific fields in .envhubrc.json.`,
+    };
+    checks.push(initCheck);
+    progress?.({
+      phase: "end",
+      check: initCheck,
     });
-    checks.push({
+    const providerIdentityCheck: DoctorCheckResult = {
+      id: "provider.identity",
+      title: "Provider identity",
+      status: "warn",
+      message: "Skipped because provider could not be initialized.",
+    };
+    checks.push(providerIdentityCheck);
+    progress?.({ phase: "end", check: providerIdentityCheck });
+
+    const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
-    });
-    checks.push({
-      id: "provider.rights",
+    };
+    checks.push(reachabilityCheck);
+    progress?.({ phase: "end", check: reachabilityCheck });
+
+    const listRightsCheck: DoctorCheckResult = {
+      id: "provider.list_rights",
       title: "Provider list rights",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
-    });
+    };
+    checks.push(listRightsCheck);
+    progress?.({ phase: "end", check: listRightsCheck });
+
+    const readRightsCheck: DoctorCheckResult = {
+      id: "provider.read_rights",
+      title: "Provider read rights",
+      status: "warn",
+      message: "Skipped because provider could not be initialized.",
+    };
+    checks.push(readRightsCheck);
+    progress?.({ phase: "end", check: readRightsCheck });
 
     return {
       checks,
@@ -259,36 +526,239 @@ async function runDoctorChecks(): Promise<DoctorReport> {
     };
   }
 
+  progress?.({ phase: "start", id: "provider.identity", title: "Provider identity" });
+  if (config.provider === "aws" && config.aws) {
+    const identityCheck: DoctorCheckResult = {
+      id: "provider.identity",
+      title: "Provider identity",
+      status: "pass",
+      message: `AWS context: profile '${config.aws.profile}', region '${config.aws.region}'.`,
+    };
+    checks.push(identityCheck);
+    progress?.({
+      phase: "end",
+      check: identityCheck,
+    });
+  } else if (config.provider === "gcp" && config.gcp) {
+    const projectName = await resolveGcpProjectName(config.gcp.projectId);
+    const identityCheck: DoctorCheckResult = {
+      id: "provider.identity",
+      title: "Provider identity",
+      status: "pass",
+      message: projectName
+        ? `GCP context: project '${config.gcp.projectId}' (${projectName}).`
+        : `GCP context: project '${config.gcp.projectId}'.`,
+    };
+    checks.push(identityCheck);
+    progress?.({
+      phase: "end",
+      check: identityCheck,
+    });
+  } else if (config.provider === "azure" && config.azure) {
+    const identityCheck: DoctorCheckResult = {
+      id: "provider.identity",
+      title: "Provider identity",
+      status: "pass",
+      message: `Azure context: vault '${config.azure.vaultUrl}'.`,
+    };
+    checks.push(identityCheck);
+    progress?.({
+      phase: "end",
+      check: identityCheck,
+    });
+  } else {
+    const identityCheck: DoctorCheckResult = {
+      id: "provider.identity",
+      title: "Provider identity",
+      status: "warn",
+      message: "Provider identity context is not available in configuration.",
+    };
+    checks.push(identityCheck);
+    progress?.({
+      phase: "end",
+      check: identityCheck,
+    });
+  }
+
   try {
+    progress?.({
+      phase: "start",
+      id: "provider.reachability_and_auth",
+      title: "Provider reachability/auth",
+    });
     await provider.list();
-    checks.push({
+    const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
       status: "pass",
       message: `Connected to ${provider.name} and authenticated successfully.`,
+    };
+    checks.push(reachabilityCheck);
+    progress?.({
+      phase: "end",
+      check: reachabilityCheck,
     });
-    checks.push({
-      id: "provider.rights",
+
+    progress?.({
+      phase: "start",
+      id: "provider.list_rights",
+      title: "Provider list rights",
+    });
+    const listRightsCheck: DoctorCheckResult = {
+      id: "provider.list_rights",
       title: "Provider list rights",
       status: "pass",
       message: "Current identity can list envhub-managed secrets.",
+    };
+    checks.push(listRightsCheck);
+    progress?.({
+      phase: "end",
+      check: listRightsCheck,
     });
+
+    const trackedSecretNames = Object.keys(config.secrets).sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+    progress?.({
+      phase: "start",
+      id: "provider.read_rights",
+      title: "Provider read rights",
+    });
+    if (trackedSecretNames.length === 0) {
+      const readCheck: DoctorCheckResult = {
+        id: "provider.read_rights",
+        title: "Provider read rights",
+        status: "warn",
+        message:
+          "Skipped because no tracked secrets are configured. Add secrets via push/pull first.",
+      };
+      checks.push(readCheck);
+      progress?.({
+        phase: "end",
+        check: readCheck,
+      });
+    } else {
+      const passedSecrets: string[] = [];
+      const failedSecrets: string[] = [];
+      let firstFailureMessage = "";
+      for (const secretName of trackedSecretNames) {
+        try {
+          await provider.cat(secretName);
+          passedSecrets.push(secretName);
+        } catch (error) {
+          failedSecrets.push(secretName);
+          if (!firstFailureMessage) {
+            firstFailureMessage =
+              error instanceof Error ? error.message : "Unknown provider error.";
+          }
+        }
+      }
+
+      if (failedSecrets.length === 0) {
+        const passedLines = trackedSecretNames.map((name) => `    ✔ ${name}`);
+        const readCheck: DoctorCheckResult = {
+          id: "provider.read_rights",
+          title: "Provider read rights",
+          status: "pass",
+          message:
+            `Read checks passed for all tracked secrets (${trackedSecretNames.length}/${trackedSecretNames.length}).\n` +
+            passedLines.join("\n"),
+        };
+        checks.push(readCheck);
+        progress?.({
+          phase: "end",
+          check: readCheck,
+        });
+      } else {
+        const classification = classifyProviderFailure(provider.name, firstFailureMessage);
+        if (failedSecrets.length === trackedSecretNames.length) {
+          const failedLines = failedSecrets.map((name) => `    ✖ ${name}`);
+          const readCheck: DoctorCheckResult = {
+            id: "provider.read_rights",
+            title: "Provider read rights",
+            status: "fail",
+            message:
+              `Read checks failed for all ${trackedSecretNames.length} tracked secrets.\n` +
+              failedLines.join("\n"),
+            details: classification.details,
+          };
+          checks.push(readCheck);
+          progress?.({
+            phase: "end",
+            check: readCheck,
+          });
+        } else {
+          const passedLines = passedSecrets.map((name) => `    ✔ ${name}`);
+          const failedLines = failedSecrets.map((name) => `    ✖ ${name}`);
+          const readCheck: DoctorCheckResult = {
+            id: "provider.read_rights",
+            title: "Provider read rights",
+            status: "warn",
+            message:
+              `Read checks partially passed (${passedSecrets.length}/${trackedSecretNames.length}).\n` +
+              passedLines.join("\n") +
+              "\n" +
+              failedLines.join("\n"),
+            details: classification.details,
+          };
+          checks.push(readCheck);
+          progress?.({
+            phase: "end",
+            check: readCheck,
+          });
+        }
+      }
+    }
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : "Unknown provider error.";
     const classification = classifyProviderFailure(provider.name, rawMessage);
-    checks.push({
+    const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
       status: "fail",
       message: classification.message,
       details: classification.details,
+    };
+    checks.push(reachabilityCheck);
+    progress?.({
+      phase: "end",
+      check: reachabilityCheck,
     });
-    checks.push({
-      id: "provider.rights",
+
+    progress?.({
+      phase: "start",
+      id: "provider.list_rights",
+      title: "Provider list rights",
+    });
+    const listRightsCheck: DoctorCheckResult = {
+      id: "provider.list_rights",
       title: "Provider list rights",
       status: "fail",
       message: "Could not verify permission to list envhub-managed secrets.",
       details: classification.details,
+    };
+    checks.push(listRightsCheck);
+    progress?.({
+      phase: "end",
+      check: listRightsCheck,
+    });
+
+    progress?.({
+      phase: "start",
+      id: "provider.read_rights",
+      title: "Provider read rights",
+    });
+    const readCheck: DoctorCheckResult = {
+      id: "provider.read_rights",
+      title: "Provider read rights",
+      status: "warn",
+      message: "Skipped because list permission check failed.",
+    };
+    checks.push(readCheck);
+    progress?.({
+      phase: "end",
+      check: readCheck,
     });
   }
 
@@ -303,12 +773,30 @@ async function runDoctorChecks(): Promise<DoctorReport> {
  * Runs read-only health checks for local config and provider connectivity.
  */
 export async function doctorCommand(options: DoctorCommandOptions): Promise<void> {
-  const report = await runDoctorChecks();
+  let currentSpinner: Ora | null = null;
+  if (!options.json) {
+    renderHumanHeader();
+  }
+  const progress: DoctorProgressHandler | undefined = options.json
+    ? undefined
+    : (event) => {
+      if (event.phase === "start") {
+        currentSpinner = logger.spinner(`Checking ${event.id}...`);
+        return;
+      }
+      if (currentSpinner) {
+        currentSpinner.stop();
+        currentSpinner = null;
+      }
+      logCheckLine(event.check);
+    };
+
+  const report = await runDoctorChecks(progress);
 
   if (options.json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
-    renderHumanReport(report);
+    renderHumanSummary(report);
   }
 
   if (report.summary.fail > 0) {

@@ -73,20 +73,20 @@ envhub compares your local file with the remote version and shows a diff:
   Changes to push
   local = value from your .env, remote = current cloud value
 
-  ┌─ ADDED (1)
+  ┌─ 🟢 ADDED (1)
   │
   │ SENTRY_DSN
   │   local : https://example.ingest.sentry.io/123
   │
   └──
-  ┌─ CHANGED (1)
+  ┌─ 🟡 CHANGED (1)
   │
   │ DATABASE_URL
   │   local : postgres://user:pass@new-host:5432/mydb
   │   remote: postgres://user:pass@old-host:5432/mydb
   │
   └──
-  ┌─ REMOVED (1)
+  ┌─ 🔴 REMOVED (1)
   │
   │ OLD_KEY
   │   remote: legacy-value

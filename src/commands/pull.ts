@@ -47,8 +47,14 @@ function formatDryRunChangesBoxes(changes: EnvChange[]): string {
     return "  No changes detected.";
   }
 
+  const groupMeta: Record<EnvChange["type"], { label: string; emoji: string }> = {
+    added: { label: "ADDED", emoji: "🟢" },
+    changed: { label: "CHANGED", emoji: "🟡" },
+    removed: { label: "REMOVED", emoji: "🔴" },
+  };
+
   const renderGroup = (
-    title: string,
+    type: EnvChange["type"],
     group: EnvChange[],
     colorize: (text: string) => string,
   ): string[] => {
@@ -56,17 +62,22 @@ function formatDryRunChangesBoxes(changes: EnvChange[]): string {
       return [];
     }
 
+    const { label, emoji } = groupMeta[type];
     const lines: string[] = [];
-    lines.push(colorize(`  ┌─ ${title} (${group.length})`));
+    lines.push(colorize(`  ┌─ ${chalk.bold(`${emoji} ${label} (${group.length})`)}`));
     lines.push(colorize("  │"));
 
     for (const change of group) {
       const localValue = truncateCell(change.oldValue ?? "-", 84);
       const remoteValue = truncateCell(change.newValue ?? "-", 84);
 
-      lines.push(colorize(`  │ ${change.key}`));
-      lines.push(colorize(`  │   local : ${change.type === "added" ? "-" : localValue}`));
-      lines.push(colorize(`  │   remote: ${change.type === "removed" ? "-" : remoteValue}`));
+      lines.push(`${colorize("  │ ")}${change.key}`);
+      lines.push(
+        `${colorize("  │ ")}  local : ${change.type === "added" ? "-" : localValue}`
+      );
+      lines.push(
+        `${colorize("  │ ")}  remote: ${change.type === "removed" ? "-" : remoteValue}`
+      );
       lines.push(colorize("  │"));
     }
 
@@ -79,9 +90,9 @@ function formatDryRunChangesBoxes(changes: EnvChange[]): string {
   const removed = changes.filter((c) => c.type === "removed");
 
   const lines: string[] = [
-    ...renderGroup("ADDED", added, chalk.green),
-    ...renderGroup("CHANGED", changed, chalk.yellow),
-    ...renderGroup("REMOVED", removed, chalk.red),
+    ...renderGroup("added", added, chalk.greenBright),
+    ...renderGroup("changed", changed, chalk.yellowBright),
+    ...renderGroup("removed", removed, chalk.redBright),
   ];
 
   return lines.join("\n");

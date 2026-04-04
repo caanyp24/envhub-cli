@@ -69,6 +69,7 @@ vi.mock("@inquirer/prompts", () => ({
 
 import { pushCommand } from "../../src/commands/push.js";
 import { logger } from "../../src/utils/logger.js";
+import { confirm } from "@inquirer/prompts";
 
 // ── Tests ────────────────────────────────────────────────────────
 
@@ -190,13 +191,13 @@ describe("pushCommand", () => {
     );
     expect(logger.log).toHaveBeenCalledWith("  Changes to push");
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("┌─ ADDED (1)")
+      expect.stringContaining("┌─ 🟢 ADDED (1)")
     );
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("┌─ CHANGED (2)")
+      expect.stringContaining("┌─ 🟡 CHANGED (2)")
     );
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("┌─ REMOVED (1)")
+      expect.stringContaining("┌─ 🔴 REMOVED (1)")
     );
     expect(logger.log).toHaveBeenCalledWith(
       expect.stringContaining("REDIS_URL")
@@ -229,7 +230,7 @@ describe("pushCommand", () => {
     const loggedStrings = vi.mocked(logger.log).mock.calls
       .map((args) => args[0])
       .filter((value): value is string => typeof value === "string");
-    const diffBlock = loggedStrings.find((entry) => entry.includes("┌─ ADDED (1)"));
+    const diffBlock = loggedStrings.find((entry) => entry.includes("┌─ 🟢 ADDED (1)"));
 
     expect(diffBlock).toBeDefined();
     expect(diffBlock).toContain("REDIS_URL");
@@ -238,6 +239,31 @@ describe("pushCommand", () => {
     expect(diffBlock).toContain("│   remote: true");
     expect(diffBlock).not.toContain("FEATURE_FLAG_NEW_DASHBOARD\n  │   local :");
     expect(diffBlock).not.toContain("REDIS_URL\n  │   remote:");
+  });
+
+  it("should cancel cleanly on Ctrl+C during push confirmation", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nOPENAI_API_KEY=old_key\n"
+    );
+
+    mockProvider.cat.mockResolvedValueOnce("OPENAI_API_KEY=new_key\n");
+    mockProvider.getVersion.mockResolvedValueOnce(0);
+    vi.mocked(confirm).mockRejectedValueOnce(
+      Object.assign(new Error("User force closed the prompt"), {
+        name: "ExitPromptError",
+      })
+    );
+
+    await pushCommand("my-app", envFilePath, {});
+
+    expect(logger.info).toHaveBeenCalledWith("Push cancelled.");
+    expect(mockProvider.push).not.toHaveBeenCalled();
+
+    const loggedStrings = vi.mocked(logger.log).mock.calls
+      .map((args) => args[0])
+      .filter((value): value is string => typeof value === "string");
+    expect(loggedStrings.some((entry) => entry.includes("New secret with"))).toBe(false);
   });
 
   it("should block push when envhub header is missing", async () => {

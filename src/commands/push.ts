@@ -15,6 +15,35 @@ interface PushCommandOptions {
   force?: boolean;
 }
 
+function isPromptCancellationError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return (
+    error.name === "ExitPromptError" ||
+    error.name === "AbortPromptError" ||
+    error.message.toLowerCase().includes("force closed")
+  );
+}
+
+async function confirmOrCancel(
+  message: string,
+  defaultValue: boolean
+): Promise<boolean | "cancelled"> {
+  try {
+    return await confirm({
+      message,
+      default: defaultValue,
+    });
+  } catch (error) {
+    if (isPromptCancellationError(error)) {
+      logger.info("Push cancelled.");
+      return "cancelled";
+    }
+    throw error;
+  }
+}
+
 function truncateCell(value: string, maxLength: number): string {
   if (value.length <= maxLength) {
     return value;
@@ -27,8 +56,14 @@ function formatPushChangesBoxes(changes: EnvChange[]): string {
     return "  No changes detected.";
   }
 
+  const groupMeta: Record<EnvChange["type"], { label: string; emoji: string }> = {
+    added: { label: "ADDED", emoji: "🟢" },
+    changed: { label: "CHANGED", emoji: "🟡" },
+    removed: { label: "REMOVED", emoji: "🔴" },
+  };
+
   const renderGroup = (
-    title: string,
+    type: EnvChange["type"],
     group: EnvChange[],
     colorize: (text: string) => string,
   ): string[] => {
@@ -36,23 +71,24 @@ function formatPushChangesBoxes(changes: EnvChange[]): string {
       return [];
     }
 
+    const { label, emoji } = groupMeta[type];
     const lines: string[] = [];
-    lines.push(colorize(`  ┌─ ${title} (${group.length})`));
+    lines.push(colorize(`  ┌─ ${chalk.bold(`${emoji} ${label} (${group.length})`)}`));
     lines.push(colorize("  │"));
 
     for (const change of group) {
       const localValue = truncateCell(change.newValue ?? "", 84);
       const remoteValue = truncateCell(change.oldValue ?? "", 84);
 
-      lines.push(colorize(`  │ ${change.key}`));
+      lines.push(`${colorize("  │ ")}${change.key}`);
 
       if (change.type === "added") {
-        lines.push(colorize(`  │   local : ${localValue}`));
+        lines.push(`${colorize("  │ ")}  local : ${localValue}`);
       } else if (change.type === "removed") {
-        lines.push(colorize(`  │   remote: ${remoteValue}`));
+        lines.push(`${colorize("  │ ")}  remote: ${remoteValue}`);
       } else {
-        lines.push(colorize(`  │   local : ${localValue}`));
-        lines.push(colorize(`  │   remote: ${remoteValue}`));
+        lines.push(`${colorize("  │ ")}  local : ${localValue}`);
+        lines.push(`${colorize("  │ ")}  remote: ${remoteValue}`);
       }
 
       lines.push(colorize("  │"));
@@ -67,9 +103,9 @@ function formatPushChangesBoxes(changes: EnvChange[]): string {
   const removed = changes.filter((c) => c.type === "removed");
 
   return [
-    ...renderGroup("ADDED", added, chalk.green),
-    ...renderGroup("CHANGED", changed, chalk.yellow),
-    ...renderGroup("REMOVED", removed, chalk.red),
+    ...renderGroup("added", added, chalk.greenBright),
+    ...renderGroup("changed", changed, chalk.yellowBright),
+    ...renderGroup("removed", removed, chalk.redBright),
   ].join("\n");
 }
 
@@ -166,10 +202,14 @@ export async function pushCommand(
       logger.warn(versionCheck.reason ?? "Version conflict detected.");
       logger.newline();
 
-      const forcePush = await confirm({
-        message: "Do you want to force push anyway?",
-        default: false,
-      });
+      const forcePush = await confirmOrCancel(
+        "Do you want to force push anyway?",
+        false
+      );
+
+      if (forcePush === "cancelled") {
+        return;
+      }
 
       if (!forcePush) {
         logger.info("Push cancelled. Run 'envhub pull' first.");
@@ -180,10 +220,16 @@ export async function pushCommand(
 
   // Show diff: compare local file with remote content
   let isNewSecret = false;
+  let remoteContent = "";
 
   try {
-    const remoteContent = stripEnvhubHeader(await provider.cat(secretName));
+    remoteContent = stripEnvhubHeader(await provider.cat(secretName));
+  } catch {
+    // Secret doesn't exist yet — show all entries as new
+    isNewSecret = true;
+  }
 
+  if (!isNewSecret) {
     // Secret exists — compare local vs remote
     const changes = diffEnvContents(remoteContent, localContent);
 
@@ -211,10 +257,11 @@ export async function pushCommand(
       logger.newline();
 
       if (!options.force) {
-        const confirmPush = await confirm({
-          message: "Push these changes?",
-          default: true,
-        });
+        const confirmPush = await confirmOrCancel("Push these changes?", true);
+
+        if (confirmPush === "cancelled") {
+          return;
+        }
 
         if (!confirmPush) {
           logger.info("Push cancelled.");
@@ -222,18 +269,21 @@ export async function pushCommand(
         }
       }
     }
-  } catch {
+  } else {
     // Secret doesn't exist yet — show all entries as new
-    isNewSecret = true;
     logger.newline();
     logger.log(formatNewEntries(localContent));
     logger.newline();
 
     if (!options.force) {
-      const confirmPush = await confirm({
-        message: `Create new secret '${secretName}'?`,
-        default: true,
-      });
+      const confirmPush = await confirmOrCancel(
+        `Create new secret '${secretName}'?`,
+        true
+      );
+
+      if (confirmPush === "cancelled") {
+        return;
+      }
 
       if (!confirmPush) {
         logger.info("Push cancelled.");

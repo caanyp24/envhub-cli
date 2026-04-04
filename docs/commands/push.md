@@ -143,14 +143,15 @@ If the header is missing, push is blocked:
 ℹ Run 'envhub pull my-app-dev ./.env' first to regenerate the header, or use --force to override.
 ```
 
-If the header exists but the environment does not match the target secret, push is also blocked:
+If the header exists but the environment does not match the target secret, push is blocked for existing secrets:
 
 ```
 ✖ Environment mismatch: file header is 'my-app-dev', but you are pushing to 'my-app-prod'.
 ℹ Run 'envhub pull my-app-dev ./.env' first, or use --force to override.
 ```
 
-This helps prevent accidentally pushing the wrong environment file.
+For a brand-new secret, push proceeds through the normal "Create new secret?" confirmation and then updates the local file header to the pushed environment name.
+This helps prevent accidentally pushing the wrong environment file while still allowing intentional creation of new environments.
 
 ## Comments in `.env`
 

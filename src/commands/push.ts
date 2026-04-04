@@ -4,8 +4,17 @@ import { confirm } from "@inquirer/prompts";
 import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { VersionControl } from "../versioning/version-control.js";
-import { readEnvFileRaw, fileExists, parseEnvContent } from "../utils/env-parser.js";
-import { getEnvhubHeaderEnvironment, stripEnvhubHeader } from "../utils/envhub-header.js";
+import {
+  readEnvFileRaw,
+  writeEnvFileRaw,
+  fileExists,
+  parseEnvContent,
+} from "../utils/env-parser.js";
+import {
+  addEnvhubHeader,
+  getEnvhubHeaderEnvironment,
+  stripEnvhubHeader,
+} from "../utils/envhub-header.js";
 import { diffEnvContents } from "../utils/diff.js";
 import type { EnvChange } from "../utils/diff.js";
 import { logger } from "../utils/logger.js";
@@ -171,6 +180,7 @@ export async function pushCommand(
   // Read the local .env file
   const rawLocalContent = await readEnvFileRaw(resolvedPath);
   const headerEnvironment = getEnvhubHeaderEnvironment(rawLocalContent);
+  const localContent = stripEnvhubHeader(rawLocalContent);
 
   if (!options.force && !headerEnvironment) {
     logger.error("Missing envhub header in local file.");
@@ -181,7 +191,18 @@ export async function pushCommand(
     return;
   }
 
-  if (!options.force && headerEnvironment !== secretName) {
+  // Detect whether secret already exists remotely
+  let isNewSecret = false;
+  let remoteContent = "";
+
+  try {
+    remoteContent = stripEnvhubHeader(await provider.cat(secretName));
+  } catch {
+    // Secret doesn't exist yet — show all entries as new
+    isNewSecret = true;
+  }
+
+  if (!options.force && headerEnvironment !== secretName && !isNewSecret) {
     logger.error(
       `Environment mismatch: file header is '${headerEnvironment}', but you are pushing to '${secretName}'.`
     );
@@ -191,8 +212,6 @@ export async function pushCommand(
     process.exit(1);
     return;
   }
-
-  const localContent = stripEnvhubHeader(rawLocalContent);
 
   // Version check (unless --force)
   if (!options.force) {
@@ -216,17 +235,6 @@ export async function pushCommand(
         return;
       }
     }
-  }
-
-  // Show diff: compare local file with remote content
-  let isNewSecret = false;
-  let remoteContent = "";
-
-  try {
-    remoteContent = stripEnvhubHeader(await provider.cat(secretName));
-  } catch {
-    // Secret doesn't exist yet — show all entries as new
-    isNewSecret = true;
   }
 
   if (!isNewSecret) {
@@ -307,6 +315,18 @@ export async function pushCommand(
 
     // Update local version tracking
     await versionControl.recordPush(secretName, result.version, filePath);
+
+    // Keep local header aligned with the pushed environment name.
+    if (headerEnvironment !== secretName) {
+      const headerSyncedContent = addEnvhubHeader(secretName, localContent);
+      try {
+        await writeEnvFileRaw(resolvedPath, headerSyncedContent);
+      } catch {
+        logger.warn(
+          "Push succeeded, but local file header could not be updated."
+        );
+      }
+    }
 
     spinner.succeed(
       `Pushed '${secretName}' (v${result.version}) to ${provider.name}.`

@@ -19,4 +19,22 @@ describe("CLI", () => {
 
     expect(hasJsonOption).toBe(true);
   });
+
+  it("should register --dry-run option for pull", () => {
+    const program = createProgram();
+    const pull = program.commands.find((cmd) => cmd.name() === "pull");
+
+    const hasDryRunOption =
+      pull?.options.some((option) => option.long === "--dry-run") ?? false;
+
+    expect(hasDryRunOption).toBe(true);
+  });
+
+  it("should require name/file arguments for pull", () => {
+    const program = createProgram();
+    const pull = program.commands.find((cmd) => cmd.name() === "pull");
+
+    const requiredFlags = pull?.registeredArguments.map((arg) => arg.required) ?? [];
+    expect(requiredFlags).toEqual([true, true]);
+  });
 });

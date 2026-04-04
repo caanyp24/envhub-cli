@@ -6,7 +6,14 @@ Pull the latest version of a secret from the cloud provider and write it to a lo
 
 ```bash
 envhub pull <name> <file>
+envhub pull <name> <file> --dry-run
 ```
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `--dry-run` | Show local-vs-remote diff and version check without writing the local file |
 
 ## Arguments
 
@@ -15,12 +22,20 @@ envhub pull <name> <file>
 | `name` | The name of the secret to pull (e.g. `my-app-dev`) |
 | `file` | Path where the `.env` file should be written (e.g. `./.env`) |
 
+Both `name` and `file` are required for normal pull and for `--dry-run`.
+
 ## Examples
 
 ### Pull a secret
 
 ```bash
 npx envhub pull my-app-dev ./.env
+```
+
+### Preview before pulling
+
+```bash
+npx envhub pull my-app-dev ./.env --dry-run
 ```
 
 ### Switch between environments
@@ -43,3 +58,7 @@ One line. Secret name, version, file path, number of keys. That's it.
 
 - Pull always overwrites the local file without asking for confirmation. Pulling is a conscious action.
 - Use `envhub cat <name>` to inspect a secret before pulling if needed.
+- Comment lines are pulled together with key/value entries because they are stored as part of the secret content.
+- Pulled values are written as stored in the secret (no forced quote normalization).
+- `--dry-run` does not modify local files and does not update version tracking.
+- `--dry-run` requires an envhub header in the local file to keep environment safety checks intact.

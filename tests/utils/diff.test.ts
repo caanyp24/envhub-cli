@@ -103,6 +103,11 @@ describe("formatChanges", () => {
     expect(result).toBe("No changes detected.");
   });
 
+  it("should preserve indent in empty-state output", () => {
+    const result = formatChanges([], { indent: "    " });
+    expect(result).toBe("    No changes detected.");
+  });
+
   it("should format added entries", () => {
     const changes: EnvChange[] = [
       { key: "NEW_KEY", type: "added", newValue: "secret_value" },
@@ -153,6 +158,40 @@ describe("formatChanges", () => {
     expect(result).toContain("Added (1)");
     expect(result).toContain("Removed (1)");
     expect(result).toContain("Changed (1)");
+  });
+
+  it("should show cleartext values when masking is disabled", () => {
+    const changes: EnvChange[] = [
+      { key: "NEW_KEY", type: "added", newValue: "secret_value" },
+    ];
+    const result = formatChanges(changes, { maskValues: false });
+
+    expect(result).toContain("+ NEW_KEY=secret_value");
+  });
+
+  it("should indent all lines when indent is provided", () => {
+    const changes: EnvChange[] = [
+      { key: "A", type: "added", newValue: "one" },
+      { key: "B", type: "removed", oldValue: "two" },
+      { key: "C", type: "changed", oldValue: "old", newValue: "new" },
+    ];
+    const result = formatChanges(changes, { indent: "    " });
+
+    expect(result).toContain("    🟢 Added (1):");
+    expect(result).toContain("    🔴 Removed (1):");
+    expect(result).toContain("    🟡 Changed (1):");
+  });
+
+  it("should show old and new values for changed entries when enabled", () => {
+    const changes: EnvChange[] = [
+      { key: "C", type: "changed", oldValue: "old", newValue: "new" },
+    ];
+    const result = formatChanges(changes, {
+      maskValues: false,
+      showChangedValues: true,
+    });
+
+    expect(result).toContain("~ C: old -> new");
   });
 });
 

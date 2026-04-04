@@ -86,6 +86,7 @@ describe("pullCommand", () => {
   });
 
   it("should pull a secret and write it to the file", async () => {
+    await fs.writeFile(envFilePath, "PLACEHOLDER=1\n");
     mockProvider.pull.mockResolvedValueOnce({
       content: "DB_HOST=localhost\nDB_PORT=5432\n",
       version: 3,
@@ -96,7 +97,7 @@ describe("pullCommand", () => {
 
     const content = await fs.readFile(envFilePath, "utf-8");
     expect(content).toBe(
-      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\nDB_PORT="5432"\n'
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST=localhost\nDB_PORT=5432\n"
     );
 
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
@@ -108,6 +109,7 @@ describe("pullCommand", () => {
   });
 
   it("should show an error when the provider fails", async () => {
+    await fs.writeFile(envFilePath, "PLACEHOLDER=1\n");
     mockProvider.pull.mockRejectedValueOnce(
       new Error("Secret not found")
     );
@@ -133,15 +135,31 @@ describe("pullCommand", () => {
 
     const content = await fs.readFile(envFilePath, "utf-8");
     expect(content).toBe(
-      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nNEW_KEY="new_value"\n'
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nNEW_KEY=new_value\n"
     );
     expect(content).not.toContain("OLD_KEY");
+  });
+
+  it("should preserve special characters in pulled values end-to-end", async () => {
+    await fs.writeFile(envFilePath, "PLACEHOLDER=1\n");
+    mockProvider.pull.mockResolvedValueOnce({
+      content: 'MESSAGE="say \\"hello\\" \\\\ world"\n',
+      version: 4,
+      name: "my-app",
+    });
+
+    await pullCommand("my-app", envFilePath);
+
+    const content = await fs.readFile(envFilePath, "utf-8");
+    expect(content).toBe(
+      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nMESSAGE="say \\"hello\\" \\\\ world"\n'
+    );
   });
 
   it("should show diff and version check in dry-run without writing file", async () => {
     await fs.writeFile(
       envFilePath,
-      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\nDB_PORT="5432"\n'
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST=localhost\nDB_PORT=5432\n"
     );
 
     vi.mocked(configManager.getTrackedVersion).mockReturnValueOnce(1);
@@ -155,7 +173,7 @@ describe("pullCommand", () => {
 
     const content = await fs.readFile(envFilePath, "utf-8");
     expect(content).toBe(
-      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\nDB_PORT="5432"\n'
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST=localhost\nDB_PORT=5432\n"
     );
 
     expect(configManager.updateSecret).not.toHaveBeenCalled();
@@ -164,30 +182,10 @@ describe("pullCommand", () => {
     );
   });
 
-  it("should infer secret name from local header when dry-run is used without name", async () => {
-    await fs.writeFile(
-      envFilePath,
-      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\n'
-    );
-
-    mockProvider.pull.mockResolvedValueOnce({
-      content: "DB_HOST=localhost\n",
-      version: 9,
-      name: "my-app",
-    });
-
-    await pullCommand(undefined, envFilePath, { dryRun: true });
-
-    expect(mockProvider.pull).toHaveBeenCalledWith("my-app");
-    expect(mockSpinner.succeed).toHaveBeenCalledWith(
-      expect.stringContaining("Dry-run pull 'my-app' (v9)")
-    );
-  });
-
   it("should report no changes in dry-run mode", async () => {
     await fs.writeFile(
       envFilePath,
-      '# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST="localhost"\n'
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST=localhost\n"
     );
 
     vi.mocked(configManager.getTrackedVersion).mockReturnValueOnce(2);
@@ -221,10 +219,10 @@ describe("pullCommand", () => {
     expect(configManager.updateSecret).not.toHaveBeenCalled();
   });
 
-  it("should fail dry-run without name when local header is missing", async () => {
+  it("should fail dry-run when local header is missing", async () => {
     await fs.writeFile(envFilePath, 'DB_HOST="localhost"\n');
 
-    await pullCommand(undefined, envFilePath, { dryRun: true });
+    await pullCommand("my-app", envFilePath, { dryRun: true });
 
     expect(mockProvider.pull).not.toHaveBeenCalled();
     expect(mockSpinner.fail).not.toHaveBeenCalled();

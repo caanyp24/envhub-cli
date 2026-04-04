@@ -30,11 +30,11 @@ describe("CLI", () => {
     expect(hasDryRunOption).toBe(true);
   });
 
-  it("should allow optional name/file arguments for pull", () => {
+  it("should require name/file arguments for pull", () => {
     const program = createProgram();
     const pull = program.commands.find((cmd) => cmd.name() === "pull");
 
     const requiredFlags = pull?.registeredArguments.map((arg) => arg.required) ?? [];
-    expect(requiredFlags).toEqual([false, false]);
+    expect(requiredFlags).toEqual([true, true]);
   });
 });

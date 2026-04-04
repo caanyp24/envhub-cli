@@ -8,7 +8,6 @@ import {
   readEnvFileRaw,
   fileExists,
   parseEnvContent,
-  quoteAllEnvValues,
 } from "../utils/env-parser.js";
 import { addEnvhubHeader, getEnvhubHeaderEnvironment } from "../utils/envhub-header.js";
 import { diffEnvContents } from "../utils/diff.js";
@@ -131,39 +130,39 @@ function summarizeDryRunChanges(changes: EnvChange[]): {
  * Pulls the latest version of a secret and writes it to a local .env file.
  */
 export async function pullCommand(
-  secretName?: string,
-  filePath?: string,
+  secretName: string,
+  filePath: string,
   options: PullCommandOptions = {}
 ): Promise<void> {
-  const displayPath = filePath ?? "./.env";
+  const displayPath = filePath;
   const resolvedPath = path.resolve(displayPath);
-  let effectiveSecretName = secretName?.trim() ?? "";
-  let dryRunLocalContent: string | null = null;
+  const effectiveSecretName = secretName.trim();
+
+  if (!effectiveSecretName) {
+    logger.error("Usage: envhub pull <name> <file> [--dry-run]");
+    process.exit(1);
+    return;
+  }
+
+  if (!(await fileExists(resolvedPath))) {
+    const mode = options.dryRun ? "dry-run" : "pull";
+    logger.error(`File not found for ${mode}: ${resolvedPath}`);
+    process.exit(1);
+    return;
+  }
+
+  const localFileContent = await readEnvFileRaw(resolvedPath);
 
   if (options.dryRun) {
-    if (!(await fileExists(resolvedPath))) {
-      logger.error(`File not found for dry-run: ${resolvedPath}`);
+    const headerEnvironment = getEnvhubHeaderEnvironment(localFileContent);
+    if (!headerEnvironment) {
+      logger.error(
+        "Missing envhub header in local file. Cannot verify environment safety for dry-run."
+      );
+      logger.info("Run a normal pull first to regenerate the header.");
       process.exit(1);
       return;
     }
-
-    dryRunLocalContent = await readEnvFileRaw(resolvedPath);
-    if (!effectiveSecretName) {
-      const headerEnvironment = getEnvhubHeaderEnvironment(dryRunLocalContent);
-      if (!headerEnvironment) {
-        logger.error(
-          "Missing envhub header in local file. Cannot infer environment for dry-run."
-        );
-        logger.info("Run a normal pull once or pass the secret name explicitly.");
-        process.exit(1);
-        return;
-      }
-      effectiveSecretName = headerEnvironment;
-    }
-  } else if (!effectiveSecretName || !filePath) {
-    logger.error("Usage: envhub pull <name> <file> (or envhub pull --dry-run)");
-    process.exit(1);
-    return;
   }
 
   // Load config and create provider
@@ -178,13 +177,11 @@ export async function pullCommand(
     const result = await provider.pull(effectiveSecretName);
     const parsedEntries = parseEnvContent(result.content);
     const keyCount = parsedEntries.size;
-    const normalizedContent = quoteAllEnvValues(result.content);
-    const wouldWriteContent = addEnvhubHeader(effectiveSecretName, normalizedContent);
+    const wouldWriteContent = addEnvhubHeader(effectiveSecretName, result.content);
     const localVersion = configManager.getTrackedVersion(effectiveSecretName);
 
     if (options.dryRun) {
-      const currentLocalContent = dryRunLocalContent ?? await readEnvFileRaw(resolvedPath);
-      const changes = diffEnvContents(currentLocalContent, wouldWriteContent);
+      const changes = diffEnvContents(localFileContent, wouldWriteContent);
 
       spinner.succeed(
         `Dry-run pull '${effectiveSecretName}' (v${result.version}) → ${displayPath} (${keyCount} keys)`
@@ -199,7 +196,7 @@ export async function pullCommand(
           `  ${chalk.blue("ℹ")} No changes detected. Local file is already up to date.`
         );
         logger.log(
-          `  ${chalk.blue("ℹ")} Dry-run only compares local .env with remote; no changes were applied.`
+          `  ${chalk.blue("ℹ")} Dry-run only compares ${displayPath} with remote; no changes were applied.`
         );
       } else {
         logger.log(chalk.bold("  Changes if pulled"));
@@ -214,7 +211,7 @@ export async function pullCommand(
           `${chalk.red(`${summary.removed} removed`)}`
         );
         logger.log(
-          `  ${chalk.blue("ℹ")} Dry-run only compares local .env with remote; no changes were applied.`
+          `  ${chalk.blue("ℹ")} Dry-run only compares ${displayPath} with remote; no changes were applied.`
         );
       }
       return;

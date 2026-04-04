@@ -76,12 +76,13 @@ export function formatChanges(
   changes: EnvChange[],
   options: FormatChangesOptions = {}
 ): string {
+  const indent = options.indent ?? "";
+
   if (changes.length === 0) {
-    return "No changes detected.";
+    return `${indent}No changes detected.`;
   }
 
   const maskValues = options.maskValues ?? true;
-  const indent = options.indent ?? "";
   const showChangedValues = options.showChangedValues ?? false;
   const lines: string[] = [];
 

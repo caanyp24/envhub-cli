@@ -127,6 +127,12 @@ describe("quoteAllEnvValues", () => {
     const result = quoteAllEnvValues(content);
     expect(result).toBe('A="one"\nB="two"\n');
   });
+
+  it("should escape double quotes and backslashes in values", () => {
+    const content = 'KEY=say "hello" \\ world\n';
+    const result = quoteAllEnvValues(content);
+    expect(result).toBe('KEY="say \\"hello\\" \\\\ world"\n');
+  });
 });
 
 // ── serializeEnv ─────────────────────────────────────────────────

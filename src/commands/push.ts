@@ -24,6 +24,46 @@ interface PushCommandOptions {
   force?: boolean;
 }
 
+function isSecretNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const err = error as Error & {
+    code?: string | number;
+    status?: number;
+    statusCode?: number;
+    response?: { status?: number };
+  };
+
+  const code = String(err.code ?? "").toLowerCase();
+  const message = err.message.toLowerCase();
+  const status =
+    err.statusCode ?? err.status ?? err.response?.status;
+
+  if (status === 404) {
+    return true;
+  }
+
+  // GCP gRPC NOT_FOUND
+  if (code === "5") {
+    return true;
+  }
+
+  // Common provider-specific not-found identifiers/messages
+  const notFoundTokens = [
+    "not found",
+    "resourcenotfoundexception",
+    "secretnotfound",
+    "secretnotfound",
+  ];
+
+  return (
+    notFoundTokens.some((token) => code.includes(token)) ||
+    notFoundTokens.some((token) => message.includes(token))
+  );
+}
+
 function isPromptCancellationError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -197,7 +237,17 @@ export async function pushCommand(
 
   try {
     remoteContent = stripEnvhubHeader(await provider.cat(secretName));
-  } catch {
+  } catch (error) {
+    if (!isSecretNotFoundError(error)) {
+      if (error instanceof Error) {
+        logger.error(error.message);
+      } else {
+        logger.error("Failed to read remote secret.");
+      }
+      process.exit(1);
+      return;
+    }
+
     // Secret doesn't exist yet — show all entries as new
     isNewSecret = true;
   }

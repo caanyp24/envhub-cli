@@ -103,6 +103,11 @@ describe("formatChanges", () => {
     expect(result).toBe("No changes detected.");
   });
 
+  it("should preserve indent in empty-state output", () => {
+    const result = formatChanges([], { indent: "    " });
+    expect(result).toBe("    No changes detected.");
+  });
+
   it("should format added entries", () => {
     const changes: EnvChange[] = [
       { key: "NEW_KEY", type: "added", newValue: "secret_value" },

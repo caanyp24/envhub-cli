@@ -124,6 +124,33 @@ describe("pushCommand", () => {
     );
   });
 
+  it("should fail when remote read errors are not not-found", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nKEY=value\n"
+    );
+
+    mockProvider.cat.mockRejectedValueOnce(
+      Object.assign(new Error("AccessDeniedException: not authorized"), {
+        code: "AccessDeniedException",
+        statusCode: 403,
+      })
+    );
+
+    await pushCommand("my-app", envFilePath, {});
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("AccessDeniedException")
+    );
+    expect(process.exit).toHaveBeenCalledWith(1);
+    expect(mockProvider.push).not.toHaveBeenCalled();
+
+    const loggedStrings = vi.mocked(logger.log).mock.calls
+      .map((args) => args[0])
+      .filter((value): value is string => typeof value === "string");
+    expect(loggedStrings.some((entry) => entry.includes("New secret with"))).toBe(false);
+  });
+
   it("should detect no changes and skip push", async () => {
     await fs.writeFile(
       envFilePath,
@@ -189,7 +216,9 @@ describe("pushCommand", () => {
     expect(logger.log).toHaveBeenCalledWith(
       expect.stringContaining("File:")
     );
-    expect(logger.log).toHaveBeenCalledWith("  Changes to push");
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("Changes to push")
+    );
     expect(logger.log).toHaveBeenCalledWith(
       expect.stringContaining("┌─ 🟢 ADDED (1)")
     );

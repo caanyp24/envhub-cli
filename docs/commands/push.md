@@ -136,16 +136,18 @@ By default, push expects an envhub-managed header in your local file:
 # Environment: <secret-name>
 ```
 
+Do not manually remove or edit these top header comment lines. They are used by envhub to prevent environment mismatches; without them, safe mismatch detection cannot be guaranteed.
+
 If the header is missing, push is blocked:
 
-```
+```txt
 ✖ Missing envhub header in local file.
 ℹ Run 'envhub pull my-app-dev ./.env' first to regenerate the header, or use --force to override.
 ```
 
 If the header exists but the environment does not match the target secret, push is blocked for existing secrets:
 
-```
+```txt
 ✖ Environment mismatch: file header is 'my-app-dev', but you are pushing to 'my-app-prod'.
 ℹ Run 'envhub pull my-app-dev ./.env' first, or use --force to override.
 ```
@@ -155,6 +157,6 @@ This helps prevent accidentally pushing the wrong environment file while still a
 
 ## Comments in `.env`
 
-Comment lines (for example `# Database`) are stored as part of the secret content and are preserved on later pulls.
-If you only change comments, push may report "No changes detected" because diff detection is key/value-based.
-Use `--force` when you want to push comment-only edits.
+Comment lines (such as `# Database`) are stored as part of secret content and are preserved on pull.
+Diff detection is key/value-based, so changing only comments may still show "No changes detected."
+Use `--force` to push comment-only edits.

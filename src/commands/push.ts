@@ -6,12 +6,92 @@ import { ProviderFactory } from "../providers/provider.factory.js";
 import { VersionControl } from "../versioning/version-control.js";
 import { readEnvFileRaw, fileExists, parseEnvContent } from "../utils/env-parser.js";
 import { getEnvhubHeaderEnvironment, stripEnvhubHeader } from "../utils/envhub-header.js";
-import { diffEnvContents, formatChanges } from "../utils/diff.js";
+import { diffEnvContents } from "../utils/diff.js";
+import type { EnvChange } from "../utils/diff.js";
 import { logger } from "../utils/logger.js";
 
 interface PushCommandOptions {
   message?: string;
   force?: boolean;
+}
+
+function truncateCell(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return value.slice(0, maxLength - 3) + "...";
+}
+
+function formatPushChangesBoxes(changes: EnvChange[]): string {
+  if (changes.length === 0) {
+    return "  No changes detected.";
+  }
+
+  const renderGroup = (
+    title: string,
+    group: EnvChange[],
+    colorize: (text: string) => string,
+  ): string[] => {
+    if (group.length === 0) {
+      return [];
+    }
+
+    const lines: string[] = [];
+    lines.push(colorize(`  ┌─ ${title} (${group.length})`));
+    lines.push(colorize("  │"));
+
+    for (const change of group) {
+      const localValue = truncateCell(change.newValue ?? "", 84);
+      const remoteValue = truncateCell(change.oldValue ?? "", 84);
+
+      lines.push(colorize(`  │ ${change.key}`));
+
+      if (change.type === "added") {
+        lines.push(colorize(`  │   local : ${localValue}`));
+      } else if (change.type === "removed") {
+        lines.push(colorize(`  │   remote: ${remoteValue}`));
+      } else {
+        lines.push(colorize(`  │   local : ${localValue}`));
+        lines.push(colorize(`  │   remote: ${remoteValue}`));
+      }
+
+      lines.push(colorize("  │"));
+    }
+
+    lines.push(colorize("  └──"));
+    return lines;
+  };
+
+  const added = changes.filter((c) => c.type === "added");
+  const changed = changes.filter((c) => c.type === "changed");
+  const removed = changes.filter((c) => c.type === "removed");
+
+  return [
+    ...renderGroup("ADDED", added, chalk.green),
+    ...renderGroup("CHANGED", changed, chalk.yellow),
+    ...renderGroup("REMOVED", removed, chalk.red),
+  ].join("\n");
+}
+
+function formatPushPreviewBox(environment: string, filePath: string): string {
+  return [
+    chalk.bold("  ┌─ Push Preview"),
+    `  │ ${chalk.bold("Environment:")} ${chalk.bold(environment)}`,
+    `  │ ${chalk.bold("File:")} ${chalk.bold(filePath)}`,
+    "  └────",
+  ].join("\n");
+}
+
+function summarizePushChanges(changes: EnvChange[]): {
+  added: number;
+  changed: number;
+  removed: number;
+} {
+  return {
+    added: changes.filter((c) => c.type === "added").length,
+    changed: changes.filter((c) => c.type === "changed").length,
+    removed: changes.filter((c) => c.type === "removed").length,
+  };
 }
 
 /**
@@ -25,8 +105,7 @@ function formatNewEntries(content: string): string {
 
   const lines: string[] = [`  🆕 New secret with ${entries.size} entries:`];
   for (const [key, value] of entries) {
-    const masked = value.length <= 3 ? "***" : value.substring(0, 3) + "***";
-    lines.push(chalk.green(`     + ${key}=${masked}`));
+    lines.push(chalk.green(`     + ${key}=${value}`));
   }
   return lines.join("\n");
 }
@@ -115,8 +194,20 @@ export async function pushCommand(
 
     if (changes.length > 0) {
       logger.newline();
-      logger.log("Changes to push:");
-      logger.log(formatChanges(changes));
+      logger.log(formatPushPreviewBox(secretName, filePath));
+      logger.newline();
+      logger.log(chalk.bold("  Changes to push"));
+      logger.log(chalk.dim("  local = value from your .env, remote = current cloud value"));
+      logger.newline();
+      logger.log(formatPushChangesBoxes(changes));
+      const summary = summarizePushChanges(changes);
+      logger.newline();
+      logger.log(chalk.bold("  Summary"));
+      logger.log(
+        `    ${chalk.green(`${summary.added} added`)}, ` +
+        `${chalk.yellow(`${summary.changed} changed`)}, ` +
+        `${chalk.red(`${summary.removed} removed`)}`
+      );
       logger.newline();
 
       if (!options.force) {

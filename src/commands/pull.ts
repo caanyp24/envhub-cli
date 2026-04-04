@@ -58,6 +58,7 @@ function formatDryRunChangesBoxes(changes: EnvChange[]): string {
 
     const lines: string[] = [];
     lines.push(colorize(`  ┌─ ${title} (${group.length})`));
+    lines.push(colorize("  │"));
 
     for (const change of group) {
       const localValue = truncateCell(change.oldValue ?? "-", 84);
@@ -69,7 +70,7 @@ function formatDryRunChangesBoxes(changes: EnvChange[]): string {
       lines.push(colorize("  │"));
     }
 
-    lines.push(colorize("  └────────────────────────────────────────────────────────────────────────────"));
+    lines.push(colorize("  └──"));
     return lines;
   };
 
@@ -98,7 +99,7 @@ function formatDryRunMetaBox(
     chalk.bold("  ┌─ Dry Run Pull Preview"),
     `  │ ${chalk.bold("Environment:")} ${chalk.bold(environment)}`,
     `  │ ${chalk.bold("Version:")} ${chalk.bold(versionText)}`,
-    "  └────────────────────────────────────────",
+    "  └────",
   ].join("\n");
 }
 

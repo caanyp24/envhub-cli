@@ -165,6 +165,81 @@ describe("pushCommand", () => {
     );
   });
 
+  it("should render grouped diff output for changes to push", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nOPENAI_API_KEY=old_key\nAPP_PORT=3000\nREDIS_URL=redis://localhost:6379\n"
+    );
+
+    mockProvider.cat.mockResolvedValueOnce(
+      "OPENAI_API_KEY=new_key\nAPP_PORT=4000\nFEATURE_FLAG_NEW_DASHBOARD=true\n"
+    );
+    mockProvider.push.mockResolvedValueOnce({ version: 2, name: "my-app" });
+    mockProvider.getVersion.mockResolvedValueOnce(1);
+
+    await pushCommand("my-app", envFilePath, { force: true });
+
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("┌─ Push Preview")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("Environment:")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("File:")
+    );
+    expect(logger.log).toHaveBeenCalledWith("  Changes to push");
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("┌─ ADDED (1)")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("┌─ CHANGED (2)")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("┌─ REMOVED (1)")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("REDIS_URL")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("FEATURE_FLAG_NEW_DASHBOARD")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("OPENAI_API_KEY")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("local : redis://localhost:6379")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("remote: true")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("  Summary")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("1 added")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("2 changed")
+    );
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringContaining("1 removed")
+    );
+
+    const loggedStrings = vi.mocked(logger.log).mock.calls
+      .map((args) => args[0])
+      .filter((value): value is string => typeof value === "string");
+    const diffBlock = loggedStrings.find((entry) => entry.includes("┌─ ADDED (1)"));
+
+    expect(diffBlock).toBeDefined();
+    expect(diffBlock).toContain("REDIS_URL");
+    expect(diffBlock).toContain("│   local : redis://localhost:6379");
+    expect(diffBlock).toContain("FEATURE_FLAG_NEW_DASHBOARD");
+    expect(diffBlock).toContain("│   remote: true");
+    expect(diffBlock).not.toContain("FEATURE_FLAG_NEW_DASHBOARD\n  │   local :");
+    expect(diffBlock).not.toContain("REDIS_URL\n  │   remote:");
+  });
+
   it("should block push when envhub header is missing", async () => {
     await fs.writeFile(envFilePath, "KEY=value\n");
 

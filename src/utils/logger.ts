@@ -95,12 +95,13 @@ export const logger = {
     }[];
 
     const indent = options.indent ?? "";
+    const plainHeader = columns.map((col) => col.label.padEnd(col.width)).join("  ");
     const header = columns
       .map((col) => chalk.bold(col.label.padEnd(col.width)))
       .join("  ");
     const separatorWidth = Math.min(
-      header.length,
-      options.maxSeparatorWidth ?? header.length
+      plainHeader.length,
+      options.maxSeparatorWidth ?? plainHeader.length
     );
 
     console.log(indent + header);

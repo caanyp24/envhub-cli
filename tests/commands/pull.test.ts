@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { configManager } from "../../src/config/config.js";
+import { logger } from "../../src/utils/logger.js";
 
 // ── Hoisted mocks ────────────────────────────────────────────────
 
@@ -190,6 +191,13 @@ describe("pullCommand", () => {
 
     const currentContent = await fs.readFile(envFilePath, "utf-8");
     expect(currentContent).toBe("OLD_KEY=old_value\n");
+    expect(mockSpinner.fail).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to create backup")
+    );
+    expect(mockSpinner.fail).not.toHaveBeenCalledWith(
+      expect.stringContaining("Failed to pull")
+    );
+    expect(logger.error).toHaveBeenCalled();
     expect(process.exit).toHaveBeenCalledWith(1);
     expect(configManager.updateSecret).not.toHaveBeenCalled();
   });

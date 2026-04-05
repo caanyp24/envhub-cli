@@ -67,8 +67,9 @@ export function createProgram(): Command {
     .command("cat")
     .description("Display the contents of a secret")
     .argument("<name>", "Name of the secret to display")
-    .action(async (name: string) => {
-      await catCommand(name);
+    .option("--masked", "Mask secret values in output", false)
+    .action(async (name: string, options) => {
+      await catCommand(name, options);
     });
 
   // ── list ────────────────────────────────────────────────────────

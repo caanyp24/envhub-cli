@@ -57,4 +57,14 @@ describe("CLI", () => {
     const requiredFlags = pull?.registeredArguments.map((arg) => arg.required) ?? [];
     expect(requiredFlags).toEqual([true, true]);
   });
+
+  it("should register --masked option for cat", () => {
+    const program = createProgram();
+    const cat = program.commands.find((cmd) => cmd.name() === "cat");
+
+    const hasMaskedOption =
+      cat?.options.some((option) => option.long === "--masked") ?? false;
+
+    expect(hasMaskedOption).toBe(true);
+  });
 });

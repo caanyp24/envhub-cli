@@ -4,11 +4,16 @@ import { ProviderFactory } from "../providers/provider.factory.js";
 import { parseEnvContent } from "../utils/env-parser.js";
 import { logger } from "../utils/logger.js";
 
+interface CatCommandOptions {
+  masked?: boolean;
+}
+
 /**
  * Format .env content into a styled, readable table.
  */
-function formatEnvTable(content: string): string {
+function formatEnvTable(content: string, options: CatCommandOptions = {}): string {
   const entries = parseEnvContent(content);
+  const shouldMaskValues = options.masked ?? false;
 
   if (entries.size === 0) {
     return chalk.dim("  (empty)");
@@ -27,7 +32,8 @@ function formatEnvTable(content: string): string {
 
   for (const [key, value] of entries) {
     const paddedKey = key.padEnd(maxKeyLen);
-    lines.push(`  ${chalk.bold.cyan(paddedKey)}  ${chalk.dim("=")}  ${value}`);
+    const renderedValue = shouldMaskValues ? maskValue(value) : value;
+    lines.push(`  ${chalk.bold.cyan(paddedKey)}  ${chalk.dim("=")}  ${renderedValue}`);
   }
 
   lines.push(separator);
@@ -36,10 +42,23 @@ function formatEnvTable(content: string): string {
 }
 
 /**
+ * Mask a value for safe display (show first 3 chars, mask the rest).
+ */
+function maskValue(value: string): string {
+  if (value.length <= 3) {
+    return "•••";
+  }
+  return value.substring(0, 3) + "•••";
+}
+
+/**
  * The `envhub cat` command.
  * Outputs the contents of a secret without writing to disk.
  */
-export async function catCommand(secretName: string): Promise<void> {
+export async function catCommand(
+  secretName: string,
+  options: CatCommandOptions = {}
+): Promise<void> {
   // Load config and create provider
   const config = await configManager.load();
   const provider = ProviderFactory.createProvider(config);
@@ -52,7 +71,7 @@ export async function catCommand(secretName: string): Promise<void> {
     spinner.succeed(`${chalk.bold(secretName)} ${chalk.dim(`(${entries.size} keys)`)}`);
 
     logger.newline();
-    logger.log(formatEnvTable(content));
+    logger.log(formatEnvTable(content, options));
     logger.newline();
   } catch (error) {
     spinner.fail(`Failed to read '${secretName}'.`);

@@ -1,6 +1,16 @@
 import chalk from "chalk";
 import ora, { type Ora } from "ora";
 
+interface TableRenderOptions {
+  indent?: string;
+  maxSeparatorWidth?: number;
+}
+
+function isTableRenderOptions(value: unknown): value is TableRenderOptions {
+  if (!value || typeof value !== "object") return false;
+  return "indent" in value || "maxSeparatorWidth" in value;
+}
+
 /**
  * Centralized logger for consistent CLI output formatting.
  */
@@ -74,19 +84,44 @@ export const logger = {
   /**
    * Print a table header.
    */
-  tableHeader(...columns: { label: string; width: number }[]): void {
+  tableHeader(
+    ...args: Array<{ label: string; width: number } | TableRenderOptions>
+  ): void {
+    const maybeOptions = args[args.length - 1];
+    const options = isTableRenderOptions(maybeOptions) ? maybeOptions : {};
+    const columns = (isTableRenderOptions(maybeOptions) ? args.slice(0, -1) : args) as {
+      label: string;
+      width: number;
+    }[];
+
+    const indent = options.indent ?? "";
     const header = columns
       .map((col) => chalk.bold(col.label.padEnd(col.width)))
       .join("  ");
-    console.log(header);
-    console.log(chalk.dim("─".repeat(header.length)));
+    const separatorWidth = Math.min(
+      header.length,
+      options.maxSeparatorWidth ?? header.length
+    );
+
+    console.log(indent + header);
+    console.log(indent + chalk.dim("─".repeat(separatorWidth)));
   },
 
   /**
    * Print a table row.
    */
-  tableRow(...cells: { value: string; width: number }[]): void {
+  tableRow(
+    ...args: Array<{ value: string; width: number } | TableRenderOptions>
+  ): void {
+    const maybeOptions = args[args.length - 1];
+    const options = isTableRenderOptions(maybeOptions) ? maybeOptions : {};
+    const cells = (isTableRenderOptions(maybeOptions) ? args.slice(0, -1) : args) as {
+      value: string;
+      width: number;
+    }[];
+
+    const indent = options.indent ?? "";
     const row = cells.map((cell) => cell.value.padEnd(cell.width)).join("  ");
-    console.log(row);
+    console.log(indent + row);
   },
 };

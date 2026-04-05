@@ -83,6 +83,25 @@ describe("catCommand", () => {
     expect(logCalls).toContain("DB_HOST");
     expect(logCalls).toContain("DB_PORT");
     expect(logCalls).toContain("API_KEY");
+    expect(logCalls).toContain("secret123");
+  });
+
+  it("should mask values when masked option is enabled", async () => {
+    mockProvider.cat.mockResolvedValueOnce(
+      "DB_HOST=localhost\nDB_PORT=5432\nAPI_KEY=secret123"
+    );
+
+    await catCommand("my-app", { masked: true });
+
+    const logCalls = (logger.log as any).mock.calls.map((c: any) => c[0]).join("\n");
+    expect(logCalls).toContain("DB_HOST");
+    expect(logCalls).toContain("loc•••");
+    expect(logCalls).toContain("DB_PORT");
+    expect(logCalls).toContain("543•••");
+    expect(logCalls).toContain("API_KEY");
+    expect(logCalls).toContain("sec•••");
+    expect(logCalls).not.toContain("localhost");
+    expect(logCalls).not.toContain("secret123");
   });
 
   it("should show an error when the secret cannot be read", async () => {

@@ -42,7 +42,8 @@ export async function listCommand(options: ListCommandOptions = {}): Promise<voi
       { label: "Name", width: 30 },
       { label: "Secrets", width: 10 },
       { label: "Updated", width: 22 },
-      { label: "Message", width: 30 }
+      { label: "Message", width: 30 },
+      { indent: "  ", maxSeparatorWidth: 104 }
     );
 
     for (const secret of secrets) {
@@ -60,7 +61,8 @@ export async function listCommand(options: ListCommandOptions = {}): Promise<voi
         { value: secret.name, width: 30 },
         { value: String(secret.secretsCount), width: 10 },
         { value: updatedAt, width: 22 },
-        { value: secret.lastMessage ?? "—", width: 30 }
+        { value: secret.lastMessage ?? "—", width: 30 },
+        { indent: "  " }
       );
     }
 

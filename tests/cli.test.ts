@@ -30,6 +30,16 @@ describe("CLI", () => {
     expect(hasDryRunOption).toBe(true);
   });
 
+  it("should register --backup option for pull", () => {
+    const program = createProgram();
+    const pull = program.commands.find((cmd) => cmd.name() === "pull");
+
+    const hasBackupOption =
+      pull?.options.some((option) => option.long === "--backup") ?? false;
+
+    expect(hasBackupOption).toBe(true);
+  });
+
   it("should require name/file arguments for pull", () => {
     const program = createProgram();
     const pull = program.commands.find((cmd) => cmd.name() === "pull");

@@ -56,6 +56,7 @@ export function createProgram(): Command {
     .argument("<name>", "Name of the secret to pull")
     .argument("<file>", "Path to write the .env file to")
     .option("--dry-run", "Show the pull diff without writing the local file", false)
+    .option("--backup", "Create <file>.bak before overwriting the local file", false)
     .action(async (name: string, file: string, options) => {
       await pullCommand(name, file, options);
     });

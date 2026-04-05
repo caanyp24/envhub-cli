@@ -16,6 +16,7 @@ import { logger } from "../utils/logger.js";
 
 interface PullCommandOptions {
   dryRun?: boolean;
+  backup?: boolean;
 }
 
 function formatVersionStatus(localVersion: number, remoteVersion: number): string {
@@ -139,7 +140,13 @@ export async function pullCommand(
   const effectiveSecretName = secretName.trim();
 
   if (!effectiveSecretName) {
-    logger.error("Usage: envhub pull <name> <file> [--dry-run]");
+    logger.error("Usage: envhub pull <name> <file> [--dry-run] [--backup]");
+    process.exit(1);
+    return;
+  }
+
+  if (options.dryRun && options.backup) {
+    logger.error("Options conflict: use either --dry-run or --backup, not both.");
     process.exit(1);
     return;
   }
@@ -217,13 +224,21 @@ export async function pullCommand(
       return;
     }
 
+    let backupPath: string | undefined;
+    if (options.backup) {
+      backupPath = `${displayPath}.bak`;
+      const resolvedBackupPath = path.resolve(backupPath);
+      await writeEnvFileRaw(resolvedBackupPath, localFileContent);
+    }
+
     // Write the file
     await writeEnvFileRaw(resolvedPath, wouldWriteContent);
     await versionControl.recordPull(effectiveSecretName, result.version, displayPath);
 
-    spinner.succeed(
-      `Pulled '${effectiveSecretName}' (v${result.version}) → ${displayPath} (${keyCount} keys)`
-    );
+    const successMessage =
+      `Pulled '${effectiveSecretName}' (v${result.version}) → ${displayPath} (${keyCount} keys)` +
+      (backupPath ? ` [backup: ${backupPath}]` : "");
+    spinner.succeed(successMessage);
   } catch (error) {
     spinner.fail(`Failed to pull '${effectiveSecretName}'.`);
     if (error instanceof Error) {

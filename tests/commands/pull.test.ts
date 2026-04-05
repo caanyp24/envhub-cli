@@ -140,6 +140,60 @@ describe("pullCommand", () => {
     expect(content).not.toContain("OLD_KEY");
   });
 
+  it("should create a backup file before overwriting when --backup is enabled", async () => {
+    await fs.writeFile(envFilePath, "OLD_KEY=old_value\n");
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "NEW_KEY=new_value\n",
+      version: 6,
+      name: "my-app",
+    });
+
+    await pullCommand("my-app", envFilePath, { backup: true });
+
+    const currentContent = await fs.readFile(envFilePath, "utf-8");
+    const backupContent = await fs.readFile(`${envFilePath}.bak`, "utf-8");
+
+    expect(currentContent).toBe(
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nNEW_KEY=new_value\n"
+    );
+    expect(backupContent).toBe("OLD_KEY=old_value\n");
+    expect(mockSpinner.succeed).toHaveBeenCalledWith(
+      expect.stringContaining(`[backup: ${envFilePath}.bak]`)
+    );
+  });
+
+  it("should overwrite an existing backup file when --backup is enabled", async () => {
+    await fs.writeFile(envFilePath, "OLD_KEY=old_value\n");
+    await fs.writeFile(`${envFilePath}.bak`, "STALE_BACKUP=1\n");
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "NEW_KEY=new_value\n",
+      version: 7,
+      name: "my-app",
+    });
+
+    await pullCommand("my-app", envFilePath, { backup: true });
+
+    const backupContent = await fs.readFile(`${envFilePath}.bak`, "utf-8");
+    expect(backupContent).toBe("OLD_KEY=old_value\n");
+  });
+
+  it("should fail without overwriting target file when backup creation fails", async () => {
+    await fs.writeFile(envFilePath, "OLD_KEY=old_value\n");
+    await fs.mkdir(`${envFilePath}.bak`);
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "NEW_KEY=new_value\n",
+      version: 8,
+      name: "my-app",
+    });
+
+    await pullCommand("my-app", envFilePath, { backup: true });
+
+    const currentContent = await fs.readFile(envFilePath, "utf-8");
+    expect(currentContent).toBe("OLD_KEY=old_value\n");
+    expect(process.exit).toHaveBeenCalledWith(1);
+    expect(configManager.updateSecret).not.toHaveBeenCalled();
+  });
+
   it("should preserve special characters in pulled values end-to-end", async () => {
     await fs.writeFile(envFilePath, "PLACEHOLDER=1\n");
     mockProvider.pull.mockResolvedValueOnce({
@@ -228,5 +282,28 @@ describe("pullCommand", () => {
     expect(mockSpinner.fail).not.toHaveBeenCalled();
     expect(process.exit).toHaveBeenCalledWith(1);
     expect(configManager.updateSecret).not.toHaveBeenCalled();
+  });
+
+  it("should fail when both --dry-run and --backup are passed", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST=localhost\n"
+    );
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "DB_HOST=localhost\nDB_PORT=5432\n",
+      version: 9,
+      name: "my-app",
+    });
+
+    await pullCommand("my-app", envFilePath, { dryRun: true, backup: true });
+
+    expect(mockProvider.pull).not.toHaveBeenCalled();
+    expect(mockSpinner.fail).not.toHaveBeenCalled();
+    expect(process.exit).toHaveBeenCalledWith(1);
+    await expect(fs.stat(`${envFilePath}.bak`)).rejects.toThrow();
+    const currentContent = await fs.readFile(envFilePath, "utf-8");
+    expect(currentContent).toBe(
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST=localhost\n"
+    );
   });
 });

@@ -142,17 +142,20 @@ export async function pullCommand(
   if (!effectiveSecretName) {
     logger.error("Usage: envhub pull <name> <file> [--dry-run] [--backup]");
     process.exit(1);
+    return;
   }
 
   if (options.dryRun && options.backup) {
     logger.error("Options conflict: use either --dry-run or --backup, not both.");
     process.exit(1);
+    return;
   }
 
   if (!(await fileExists(resolvedPath))) {
     const mode = options.dryRun ? "dry-run" : "pull";
     logger.error(`File not found for ${mode}: ${resolvedPath}`);
     process.exit(1);
+    return;
   }
 
   const localFileContent = await readEnvFileRaw(resolvedPath);
@@ -165,6 +168,7 @@ export async function pullCommand(
       );
       logger.info("Run a normal pull first to regenerate the header.");
       process.exit(1);
+      return;
     }
   }
 
@@ -232,6 +236,7 @@ export async function pullCommand(
           logger.error(error.message);
         }
         process.exit(1);
+        return;
       }
     }
 

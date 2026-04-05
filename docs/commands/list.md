@@ -6,6 +6,7 @@ List all secrets managed by envhub that your current cloud provider profile has 
 
 ```bash
 envhub list
+envhub list --json
 ```
 
 **Alias:**
@@ -18,6 +19,10 @@ envhub ls
 
 ```bash
 npx envhub list
+```
+
+```bash
+npx envhub list --json
 ```
 
 **Output:**
@@ -45,3 +50,4 @@ api-keys-prod                   3           10.02.2026, 09:00       —
 
 - Only secrets with the configured prefix (default: `envhub-`) are shown. Other secrets in your cloud provider account are ignored.
 - The command fetches each secret's content to count the number of keys and read the last message. This may take a moment if you have many secrets.
+- `--json` prints machine-readable JSON and skips the table output.

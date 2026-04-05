@@ -20,6 +20,16 @@ describe("CLI", () => {
     expect(hasJsonOption).toBe(true);
   });
 
+  it("should register --json option for list", () => {
+    const program = createProgram();
+    const list = program.commands.find((cmd) => cmd.name() === "list");
+
+    const hasJsonOption =
+      list?.options.some((option) => option.long === "--json") ?? false;
+
+    expect(hasJsonOption).toBe(true);
+  });
+
   it("should register --dry-run option for pull", () => {
     const program = createProgram();
     const pull = program.commands.find((cmd) => cmd.name() === "pull");

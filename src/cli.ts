@@ -77,8 +77,9 @@ export function createProgram(): Command {
     .command("list")
     .alias("ls")
     .description("List all secrets managed by envhub")
-    .action(async () => {
-      await listCommand();
+    .option("--json", "Output secrets as JSON", false)
+    .action(async (options) => {
+      await listCommand(options);
     });
 
   // ── delete ──────────────────────────────────────────────────────

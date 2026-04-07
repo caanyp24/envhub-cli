@@ -39,23 +39,23 @@ envhub doctor [options]
 ◇  envhub doctor
 │  Quick health check for version, config, provider identity/access,
 │  and tracked secret readability.
-
+│
 ◇  Version
-  ✔ version.check: Version is up to date (0.3.1).
-
+│  ✔ version.check: Version is up to date (0.3.1).
+│
 ◇  Configuration
-  ✔ config.load: Configuration loaded from /project/.envhubrc.json.
-  ✔ prefix: Prefix is valid ('envhub-').
-
+│  ✔ config.load: Configuration loaded from /project/.envhubrc.json.
+│  ✔ prefix: Prefix is valid ('envhub-').
+│
 ◇  Provider
-  ✔ provider.init: Provider 'aws' initialized successfully.
-  ✔ provider.identity: AWS context: profile 'default', region 'eu-central-1'.
-  ✔ provider.identity_verified: Verified AWS identity: arn:aws:iam::123456789012:user/jane.doe (account 123456789012).
-  ✔ provider.reachability_and_auth: Connected to aws and authenticated successfully.
-
+│  ✔ provider.init: Provider 'aws' initialized successfully.
+│  ✔ provider.identity: AWS context: profile 'default', region 'eu-central-1'.
+│  ✔ provider.identity_verified: Verified AWS identity: arn:aws:iam::123456789012:user/jane.doe (account 123456789012).
+│  ✔ provider.reachability_and_auth: Connected to aws and authenticated successfully.
+│
 ◇  Permissions
-  ✔ provider.list_rights: Current identity can list envhub-managed secrets.
-  ⚠ provider.read_rights: Skipped because no tracked secrets are configured. Add secrets via push/pull first.
+│  ✔ provider.list_rights: Current identity can list envhub-managed secrets.
+│  ⚠ provider.read_rights: Skipped because no tracked secrets are configured. Add secrets via push/pull first.
 
 8 passed, 1 warning(s), 0 failed
 ```

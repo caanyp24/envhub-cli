@@ -68,23 +68,24 @@ envhub compares your local file with the remote version and shows a diff:
 ◇  Changes to push
 │  Environment: my-app-dev
 │  File: ./.env
-
-  ◇  ADDED (1)
-  │
-  │ + SENTRY_DSN
-  │   local : https://example.ingest.sentry.io/123
-  │
-  ◇  CHANGED (1)
-  │
-  │ ~ DATABASE_URL
-  │   local : postgres://user:pass@new-host:5432/mydb
-  │   remote: postgres://user:pass@old-host:5432/mydb
-  │
-  ◇  REMOVED (1)
-  │
-  │ - OLD_KEY
-  │   remote: legacy-value
-  1 added, 1 changed, 1 removed
+│
+◇  ADDED (1)
+│
+│ + SENTRY_DSN
+│   local : https://example.ingest.sentry.io/123
+│
+◇  CHANGED (1)
+│
+│ ~ DATABASE_URL
+│   local : postgres://user:pass@new-host:5432/mydb
+│   remote: postgres://user:pass@old-host:5432/mydb
+│
+◇  REMOVED (1)
+│
+│ - OLD_KEY
+│   remote: legacy-value
+│
+1 added, 1 changed, 1 removed
 
 ? Push these changes? (Y/n)
 
@@ -102,7 +103,7 @@ If your local file is identical to the remote version:
 
 ## Secret Naming
 
-All secrets are prefixed with the configured prefix (default: `envhub-`) to avoid namespace pollution in your cloud provider. So `my-app-dev` becomes `envhub-my-app-dev` in AWS Secrets Manager.
+All secrets are prefixed with the configured prefix (default: `envhub-`) to avoid namespace pollution in your cloud provider. So `my-app-dev` becomes `envhub-my-app-dev` in AWS Secrets Manager, Azure Key Vault and GCP.
 
 ## Version Conflict
 
@@ -110,8 +111,7 @@ If someone else has pushed a newer version since your last pull, you'll see:
 
 ```
 ⚠ Remote version (5) is newer than your local version (3).
-  Run 'envhub pull' first to get the latest changes,
-  or use --force to overwrite.
+  Run 'envhub pull' first to get the latest changes, or use --force to overwrite.
 ℹ Push cancelled.
 ```
 

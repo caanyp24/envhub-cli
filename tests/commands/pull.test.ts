@@ -7,7 +7,7 @@ import { logger } from "../../src/utils/logger.js";
 
 // ── Hoisted mocks ────────────────────────────────────────────────
 
-const { mockProvider, mockSpinner } = vi.hoisted(() => ({
+const { mockProvider, mockSpinner, mockClackLog, mockClackNote } = vi.hoisted(() => ({
   mockProvider: {
     name: "aws",
     push: vi.fn(),
@@ -25,6 +25,16 @@ const { mockProvider, mockSpinner } = vi.hoisted(() => ({
     fail: vi.fn().mockReturnThis(),
     stop: vi.fn().mockReturnThis(),
   },
+  mockClackLog: {
+    message: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    step: vi.fn(),
+    warn: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  },
+  mockClackNote: vi.fn(),
 }));
 
 vi.mock("../../src/config/config.js", () => ({
@@ -65,7 +75,42 @@ vi.mock("../../src/utils/logger.js", () => ({
   },
 }));
 
+vi.mock("@clack/prompts", () => ({
+  log: mockClackLog,
+  note: mockClackNote,
+}));
+
 import { pullCommand } from "../../src/commands/pull.js";
+
+async function withTTYOverride(
+  stdoutIsTTY: boolean,
+  stderrIsTTY: boolean,
+  run: () => Promise<void>
+): Promise<void> {
+  const originalStdoutTTY = process.stdout.isTTY;
+  const originalStderrTTY = process.stderr.isTTY;
+  Object.defineProperty(process.stdout, "isTTY", {
+    value: stdoutIsTTY,
+    configurable: true,
+  });
+  Object.defineProperty(process.stderr, "isTTY", {
+    value: stderrIsTTY,
+    configurable: true,
+  });
+
+  try {
+    await run();
+  } finally {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: originalStdoutTTY,
+      configurable: true,
+    });
+    Object.defineProperty(process.stderr, "isTTY", {
+      value: originalStderrTTY,
+      configurable: true,
+    });
+  }
+}
 
 // ── Tests ────────────────────────────────────────────────────────
 
@@ -231,7 +276,9 @@ describe("pullCommand", () => {
       name: "my-app",
     });
 
-    await pullCommand("my-app", envFilePath, { dryRun: true });
+    await withTTYOverride(true, true, async () => {
+      await pullCommand("my-app", envFilePath, { dryRun: true });
+    });
 
     const content = await fs.readFile(envFilePath, "utf-8");
     expect(content).toBe(
@@ -241,6 +288,33 @@ describe("pullCommand", () => {
     expect(configManager.updateSecret).not.toHaveBeenCalled();
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
       expect.stringContaining("Dry-run pull 'my-app' (v3)")
+    );
+    expect(mockClackLog.step).toHaveBeenCalledWith(
+      "Dry Run Pull Preview",
+      expect.objectContaining({ spacing: 0 })
+    );
+    expect(mockClackLog.message).toHaveBeenCalledWith(
+      expect.stringContaining("Environment: "),
+      expect.objectContaining({ spacing: 0 })
+    );
+    expect(mockClackLog.message).toHaveBeenCalledWith(
+      expect.stringContaining("Version: local=v1, remote=v3"),
+      expect.objectContaining({ spacing: 0 })
+    );
+    expect(mockClackLog.message).toHaveBeenCalledWith(
+      "Changes if pulled:",
+      expect.objectContaining({ spacing: 0 })
+    );
+    expect(mockClackNote).toHaveBeenCalledWith(
+      expect.stringContaining("NEW_KEY"),
+      expect.stringContaining("ADDED"),
+      expect.objectContaining({ format: expect.any(Function) })
+    );
+    expect(mockClackLog.message).toHaveBeenCalledWith(
+      expect.stringContaining("added")
+    );
+    expect(mockClackLog.info).toHaveBeenCalledWith(
+      expect.stringContaining("no changes were applied")
     );
   });
 
@@ -257,12 +331,45 @@ describe("pullCommand", () => {
       name: "my-app",
     });
 
-    await pullCommand("my-app", envFilePath, { dryRun: true });
+    await withTTYOverride(true, true, async () => {
+      await pullCommand("my-app", envFilePath, { dryRun: true });
+    });
 
     expect(configManager.updateSecret).not.toHaveBeenCalled();
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
       expect.stringContaining("Dry-run pull 'my-app' (v2)")
     );
+    expect(mockClackLog.info).toHaveBeenCalledWith(
+      expect.stringContaining("No changes detected")
+    );
+    expect(mockClackLog.info).toHaveBeenCalledWith(
+      expect.stringContaining("no changes were applied")
+    );
+  });
+
+  it("should fallback to plaintext dry-run output when TTY is unavailable", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nDB_HOST=localhost\n"
+    );
+
+    vi.mocked(configManager.getTrackedVersion).mockReturnValueOnce(1);
+    mockProvider.pull.mockResolvedValueOnce({
+      content: "DB_HOST=localhost\nDB_PORT=6543\n",
+      version: 2,
+      name: "my-app",
+    });
+
+    await withTTYOverride(false, false, async () => {
+      await pullCommand("my-app", envFilePath, { dryRun: true });
+
+      expect(mockClackLog.step).not.toHaveBeenCalled();
+      expect(mockClackNote).not.toHaveBeenCalled();
+      expect(logger.log).toHaveBeenCalledWith("  Dry Run Pull Preview");
+      expect(logger.log).toHaveBeenCalledWith(
+        expect.stringContaining("Dry-run only compares")
+      );
+    });
   });
 
   it("should fail dry-run when local file does not exist", async () => {

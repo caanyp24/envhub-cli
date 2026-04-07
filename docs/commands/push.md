@@ -65,36 +65,26 @@ envhub shows all entries that will be created and asks for confirmation:
 envhub compares your local file with the remote version and shows a diff:
 
 ```
-  ┌─ Push Preview
-  │ Environment: my-app-dev
-  │ File: ./.env
-  └────
+◇  Changes to push
+│  Environment: my-app-dev
+│  File: ./.env
 
-  Changes to push
-  local = value from your .env, remote = current cloud value
-
-  ┌─ 🟢 ADDED (1)
+  ◇  ADDED (1)
   │
-  │ SENTRY_DSN
+  │ + SENTRY_DSN
   │   local : https://example.ingest.sentry.io/123
   │
-  └──
-  ┌─ 🟡 CHANGED (1)
+  ◇  CHANGED (1)
   │
-  │ DATABASE_URL
+  │ ~ DATABASE_URL
   │   local : postgres://user:pass@new-host:5432/mydb
   │   remote: postgres://user:pass@old-host:5432/mydb
   │
-  └──
-  ┌─ 🔴 REMOVED (1)
+  ◇  REMOVED (1)
   │
-  │ OLD_KEY
+  │ - OLD_KEY
   │   remote: legacy-value
-  │
-  └──
-
-  Summary
-    1 added, 1 changed, 1 removed
+  1 added, 1 changed, 1 removed
 
 ? Push these changes? (Y/n)
 
@@ -120,9 +110,9 @@ If someone else has pushed a newer version since your last pull, you'll see:
 
 ```
 ⚠ Remote version (5) is newer than your local version (3).
-  Run 'envhub pull' first to get the latest changes, or use --force to overwrite.
-
-? Do you want to force push anyway? (y/N)
+  Run 'envhub pull' first to get the latest changes,
+  or use --force to overwrite.
+ℹ Push cancelled.
 ```
 
 See [Version Control](../getting-started/version-control.md) for details.

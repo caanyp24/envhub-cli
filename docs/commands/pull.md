@@ -64,6 +64,37 @@ npx envhub pull my-app-dev ./.env     # back to dev
 
 One line. Secret name, version, file path, number of keys. That's it.
 
+### Dry-Run Output
+
+When `--dry-run` is used, envhub renders a preview (no file write):
+
+```text
+✔ Dry-run pull 'my-app-dev' (v5) → ./.env (18 keys)
+
+◇  Dry Run Pull Preview
+│  Environment: my-app-dev
+│  Version: local=v4, remote=v5 (remote ahead)
+│
+│  Changes if pulled:
+│
+◇  ADDED (1)
+│  + NEW_KEY
+│    local : -
+│    remote: some-value
+│
+1 added, 0 changed, 0 removed
+ℹ Dry-run only compares ./.env with remote; no changes were applied.
+```
+
+If nothing changed:
+
+```text
+✔ Dry-run pull 'my-app-dev' (v5) → ./.env (18 keys)
+
+ℹ No changes detected. Local file is already up to date.
+ℹ Dry-run only compares ./.env with remote; no changes were applied.
+```
+
 ## Notes
 
 - Pull always overwrites the local file without asking for confirmation. Pulling is a conscious action.

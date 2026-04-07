@@ -1,4 +1,3 @@
-import { select, input, confirm } from "@inquirer/prompts";
 import chalk from "chalk";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
@@ -189,12 +188,13 @@ export async function initCommand(): Promise<void> {
   // Check if config already exists
   const exists = await ConfigManager.exists();
   if (exists) {
-    const overwrite = await confirm({
+    const overwrite = await logger.promptConfirm({
       message: "An .envhubrc.json already exists. Overwrite?",
       default: false,
+      cancelMessage: "Setup cancelled.",
     });
 
-    if (!overwrite) {
+    if (overwrite === "cancelled" || !overwrite) {
       logger.info("Setup cancelled.");
       return;
     }
@@ -203,14 +203,19 @@ export async function initCommand(): Promise<void> {
   // Step 1: Select provider
   const providers = ProviderFactory.getAvailableProviders();
 
-  const provider = await select<ProviderType>({
+  const provider = await logger.promptSelect<ProviderType>({
     message: "Which cloud provider would you like to use?",
     choices: providers.map((p) => ({
       name: p.available ? p.label : `${p.label} (coming soon)`,
       value: p.type,
       disabled: !p.available,
     })),
+    cancelMessage: "Setup cancelled.",
   });
+  if (provider === "cancelled") {
+    logger.info("Setup cancelled.");
+    return;
+  }
 
   // Step 2: Provider-specific configuration
   const config: EnvhubConfig = {
@@ -227,7 +232,7 @@ export async function initCommand(): Promise<void> {
     let detectedRegion: string | undefined;
 
     if (profiles.length > 0) {
-      profileName = await select({
+      const selectedProfile = await logger.promptSelect({
         message: "Select your AWS profile:",
         choices: [
           ...profiles.map((p) => ({
@@ -236,13 +241,25 @@ export async function initCommand(): Promise<void> {
           })),
           { name: "Enter a different profile name...", value: "__custom__" },
         ],
+        cancelMessage: "Setup cancelled.",
       });
+      if (selectedProfile === "cancelled") {
+        logger.info("Setup cancelled.");
+        return;
+      }
+      profileName = selectedProfile;
 
       if (profileName === "__custom__") {
-        profileName = await input({
+        const customProfile = await logger.promptInput({
           message: "Enter your AWS profile name:",
           validate: (val) => (val.trim() ? true : "Profile name is required."),
+          cancelMessage: "Setup cancelled.",
         });
+        if (customProfile === "cancelled") {
+          logger.info("Setup cancelled.");
+          return;
+        }
+        profileName = customProfile;
       } else {
         // Get the region from the selected profile
         detectedRegion = profiles.find((p) => p.name === profileName)?.region;
@@ -252,54 +269,89 @@ export async function initCommand(): Promise<void> {
       logger.dim("  Create one first: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html");
       logger.log("");
 
-      profileName = await input({
+      const enteredProfile = await logger.promptInput({
         message: "Enter your AWS profile name:",
         validate: (val) => (val.trim() ? true : "Profile name is required."),
+        cancelMessage: "Setup cancelled.",
       });
+      if (enteredProfile === "cancelled") {
+        logger.info("Setup cancelled.");
+        return;
+      }
+      profileName = enteredProfile;
     }
 
     // Select region — use detected region from profile if available
     let finalRegion: string;
 
     if (detectedRegion) {
-      const useDetected = await confirm({
+      const useDetected = await logger.promptConfirm({
         message: `Use region '${detectedRegion}' from your AWS profile?`,
         default: true,
+        cancelMessage: "Setup cancelled.",
       });
+      if (useDetected === "cancelled") {
+        logger.info("Setup cancelled.");
+        return;
+      }
 
       if (useDetected) {
         finalRegion = detectedRegion;
       } else {
-        finalRegion = await select({
+        const selectedRegion = await logger.promptSelect({
           message: "Select a different AWS region:",
           choices: [
             ...AWS_REGIONS,
             { name: "Enter a custom region...", value: "__custom__" },
           ],
+          cancelMessage: "Setup cancelled.",
         });
+        if (selectedRegion === "cancelled") {
+          logger.info("Setup cancelled.");
+          return;
+        }
+        finalRegion = selectedRegion;
 
         if (finalRegion === "__custom__") {
-          finalRegion = await input({
+          const customRegion = await logger.promptInput({
             message: "Enter the AWS region (e.g. eu-central-1):",
             validate: (val) => (val.trim() ? true : "Region is required."),
+            cancelMessage: "Setup cancelled.",
           });
+          if (customRegion === "cancelled") {
+            logger.info("Setup cancelled.");
+            return;
+          }
+          finalRegion = customRegion;
         }
       }
     } else {
-      finalRegion = await select({
+      const selectedRegion = await logger.promptSelect({
         message: "Select your AWS region:",
         choices: [
           ...AWS_REGIONS,
           { name: "Enter a custom region...", value: "__custom__" },
         ],
         default: "eu-central-1",
+        cancelMessage: "Setup cancelled.",
       });
+      if (selectedRegion === "cancelled") {
+        logger.info("Setup cancelled.");
+        return;
+      }
+      finalRegion = selectedRegion;
 
       if (finalRegion === "__custom__") {
-        finalRegion = await input({
+        const customRegion = await logger.promptInput({
           message: "Enter the AWS region (e.g. eu-central-1):",
           validate: (val) => (val.trim() ? true : "Region is required."),
+          cancelMessage: "Setup cancelled.",
         });
+        if (customRegion === "cancelled") {
+          logger.info("Setup cancelled.");
+          return;
+        }
+        finalRegion = customRegion;
       }
     }
 
@@ -312,11 +364,16 @@ export async function initCommand(): Promise<void> {
     logger.dim("  For local development, run 'az login' or set AZURE_* env vars.");
     logger.log("");
 
-    const vaultUrlInput = await input({
+    const vaultUrlInput = await logger.promptInput({
       message: "Enter your Azure Key Vault URL:",
       default: "https://my-vault.vault.azure.net",
       validate: validateAzureVaultUrl,
+      cancelMessage: "Setup cancelled.",
     });
+    if (vaultUrlInput === "cancelled") {
+      logger.info("Setup cancelled.");
+      return;
+    }
 
     config.azure = {
       vaultUrl: normalizeVaultUrl(vaultUrlInput),
@@ -326,10 +383,15 @@ export async function initCommand(): Promise<void> {
     logger.dim("  For local development, run 'gcloud auth application-default login'.");
     logger.log("");
 
-    const projectId = await input({
+    const projectId = await logger.promptInput({
       message: "Enter your GCP Project ID:",
       validate: validateGcpProjectId,
+      cancelMessage: "Setup cancelled.",
     });
+    if (projectId === "cancelled") {
+      logger.info("Setup cancelled.");
+      return;
+    }
 
     config.gcp = {
       projectId: projectId.trim(),
@@ -337,17 +399,28 @@ export async function initCommand(): Promise<void> {
   }
 
   // Step 3: Configure prefix
-  const customPrefix = await confirm({
+  const customPrefix = await logger.promptConfirm({
     message: `Use default secret prefix "${config.prefix}"?`,
     default: true,
+    cancelMessage: "Setup cancelled.",
   });
+  if (customPrefix === "cancelled") {
+    logger.info("Setup cancelled.");
+    return;
+  }
 
   if (!customPrefix) {
-    config.prefix = await input({
+    const customPrefixValue = await logger.promptInput({
       message: "Enter a custom prefix for your secrets:",
       default: "envhub-",
       validate: (val) => (val.trim() ? true : "Prefix is required."),
+      cancelMessage: "Setup cancelled.",
     });
+    if (customPrefixValue === "cancelled") {
+      logger.info("Setup cancelled.");
+      return;
+    }
+    config.prefix = customPrefixValue;
   }
 
   // Step 4: Save configuration

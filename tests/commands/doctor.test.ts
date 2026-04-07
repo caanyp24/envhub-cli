@@ -115,7 +115,9 @@ describe("doctorCommand", () => {
     await doctorCommand({});
 
     expect(mockProvider.list).toHaveBeenCalledTimes(1);
-    expect(logger.log).toHaveBeenCalledWith("  Summary");
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.stringMatching(/\b8 passed,\s*1 warning\(s\),\s*0 failed\b/)
+    );
     expect(process.exit).not.toHaveBeenCalled();
   });
 

@@ -1,4 +1,3 @@
-import { confirm } from "@inquirer/prompts";
 import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { logger } from "../utils/logger.js";
@@ -21,10 +20,15 @@ export async function deleteCommand(
 
   // Confirm deletion
   if (!options.force) {
-    const confirmed = await confirm({
+    const confirmed = await logger.promptConfirm({
       message: `Are you sure you want to delete '${secretName}'? This action cannot be undone.`,
       default: false,
+      cancelMessage: "Deletion cancelled.",
     });
+
+    if (confirmed === "cancelled") {
+      return;
+    }
 
     if (!confirmed) {
       logger.info("Deletion cancelled.");

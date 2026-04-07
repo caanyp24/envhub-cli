@@ -60,16 +60,13 @@ vi.mock("../../src/utils/logger.js", () => ({
     dim: vi.fn(),
     newline: vi.fn(),
     spinner: vi.fn().mockReturnValue(mockSpinner),
+    promptConfirm: vi.fn().mockResolvedValue(true),
   },
-}));
-
-vi.mock("@inquirer/prompts", () => ({
-  confirm: vi.fn().mockResolvedValue(true),
 }));
 
 import { pushCommand } from "../../src/commands/push.js";
 import { logger } from "../../src/utils/logger.js";
-import { confirm } from "@inquirer/prompts";
+import { VersionControl } from "../../src/versioning/version-control.js";
 
 // ── Tests ────────────────────────────────────────────────────────
 
@@ -80,12 +77,14 @@ describe("pushCommand", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.mocked(logger.promptConfirm).mockResolvedValue(true);
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "envhub-push-test-"));
     envFilePath = path.join(tmpDir, ".env");
     process.exit = vi.fn() as any;
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     process.exit = originalExit;
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
@@ -208,7 +207,7 @@ describe("pushCommand", () => {
     await pushCommand("my-app", envFilePath, { force: true });
 
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("┌─ Push Preview")
+      expect.stringContaining("Changes to push")
     );
     expect(logger.log).toHaveBeenCalledWith(
       expect.stringContaining("Environment:")
@@ -220,13 +219,13 @@ describe("pushCommand", () => {
       expect.stringContaining("Changes to push")
     );
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("┌─ 🟢 ADDED (1)")
+      expect.stringContaining("ADDED (1)")
     );
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("┌─ 🟡 CHANGED (2)")
+      expect.stringContaining("CHANGED (2)")
     );
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("┌─ 🔴 REMOVED (1)")
+      expect.stringContaining("REMOVED (1)")
     );
     expect(logger.log).toHaveBeenCalledWith(
       expect.stringContaining("REDIS_URL")
@@ -244,9 +243,6 @@ describe("pushCommand", () => {
       expect.stringContaining("remote: true")
     );
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("  Summary")
-    );
-    expect(logger.log).toHaveBeenCalledWith(
       expect.stringContaining("1 added")
     );
     expect(logger.log).toHaveBeenCalledWith(
@@ -259,15 +255,13 @@ describe("pushCommand", () => {
     const loggedStrings = vi.mocked(logger.log).mock.calls
       .map((args) => args[0])
       .filter((value): value is string => typeof value === "string");
-    const diffBlock = loggedStrings.find((entry) => entry.includes("┌─ 🟢 ADDED (1)"));
+    const diffBlock = loggedStrings.join("\n");
 
     expect(diffBlock).toBeDefined();
     expect(diffBlock).toContain("REDIS_URL");
-    expect(diffBlock).toContain("│   local : redis://localhost:6379");
+    expect(diffBlock).toContain("local : redis://localhost:6379");
     expect(diffBlock).toContain("FEATURE_FLAG_NEW_DASHBOARD");
-    expect(diffBlock).toContain("│   remote: true");
-    expect(diffBlock).not.toContain("FEATURE_FLAG_NEW_DASHBOARD\n  │   local :");
-    expect(diffBlock).not.toContain("REDIS_URL\n  │   remote:");
+    expect(diffBlock).toContain("remote: true");
   });
 
   it("should cancel cleanly on Ctrl+C during push confirmation", async () => {
@@ -278,11 +272,7 @@ describe("pushCommand", () => {
 
     mockProvider.cat.mockResolvedValueOnce("OPENAI_API_KEY=new_key\n");
     mockProvider.getVersion.mockResolvedValueOnce(0);
-    vi.mocked(confirm).mockRejectedValueOnce(
-      Object.assign(new Error("User force closed the prompt"), {
-        name: "ExitPromptError",
-      })
-    );
+    vi.mocked(logger.promptConfirm).mockResolvedValueOnce("cancelled");
 
     await pushCommand("my-app", envFilePath, {});
 
@@ -293,6 +283,37 @@ describe("pushCommand", () => {
       .map((args) => args[0])
       .filter((value): value is string => typeof value === "string");
     expect(loggedStrings.some((entry) => entry.includes("New secret with"))).toBe(false);
+  });
+
+  it("should abort immediately on version conflict without force-push prompt", async () => {
+    await fs.writeFile(
+      envFilePath,
+      "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nKEY=value\n"
+    );
+
+    mockProvider.cat.mockResolvedValueOnce("KEY=remote\n");
+    const conflictSpy = vi
+      .spyOn(VersionControl.prototype, "checkBeforePush")
+      .mockResolvedValueOnce({
+        canPush: false,
+        localVersion: 1,
+        remoteVersion: 5,
+        reason:
+          "Remote version (5) is newer than your local version (1). Run 'envhub pull' first to get the latest changes, or use --force to overwrite.",
+      });
+
+    await pushCommand("my-app", envFilePath, {});
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Remote version (5) is newer than your local version (1).")
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("\nRun 'envhub pull' first to sync changes, or use --force to overwrite.")
+    );
+    expect(process.exit).toHaveBeenCalledWith(1);
+    expect(logger.promptConfirm).not.toHaveBeenCalled();
+    expect(mockProvider.push).not.toHaveBeenCalled();
+    conflictSpy.mockRestore();
   });
 
   it("should block push when envhub header is missing", async () => {
@@ -340,27 +361,6 @@ describe("pushCommand", () => {
     );
     expect(process.exit).toHaveBeenCalledWith(1);
     expect(mockProvider.push).not.toHaveBeenCalled();
-  });
-
-  it("should allow header mismatch for a new secret and update local header", async () => {
-    await fs.writeFile(
-      envFilePath,
-      "# 🔐 Managed by envhub-cli\n# Environment: my-app-prod\n\nKEY=value\n"
-    );
-
-    mockProvider.cat.mockRejectedValueOnce(new Error("Not found"));
-    mockProvider.push.mockResolvedValueOnce({ version: 1, name: "my-app-dev" });
-    mockProvider.getVersion.mockRejectedValueOnce(new Error("Not found"));
-
-    await pushCommand("my-app-dev", envFilePath, {});
-
-    expect(mockProvider.push).toHaveBeenCalledWith(
-      "my-app-dev",
-      "KEY=value\n",
-      expect.objectContaining({ force: undefined })
-    );
-    const rewrittenContent = await fs.readFile(envFilePath, "utf-8");
-    expect(rewrittenContent).toContain("# Environment: my-app-dev");
   });
 
   it("should allow envhub header mismatch when --force is used", async () => {

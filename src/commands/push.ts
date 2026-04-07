@@ -185,6 +185,7 @@ export async function pushCommand(
         )
       );
       logger.info("Push cancelled.");
+      process.exit(1);
       return;
     }
   }

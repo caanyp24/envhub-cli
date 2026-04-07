@@ -66,11 +66,14 @@ export async function catCommand(
   const spinner = logger.spinner(`Reading '${secretName}'...`);
 
   try {
-    const [content, remoteVersion] = await Promise.all([
-      provider.cat(secretName),
-      provider.getVersion(secretName),
-    ]);
+    const content = await provider.cat(secretName);
     const entries = parseEnvContent(content);
+    let remoteVersion: number | undefined;
+    try {
+      remoteVersion = await provider.getVersion(secretName);
+    } catch {
+      remoteVersion = undefined;
+    }
     const versionSegment = typeof remoteVersion === "number"
       ? `v${remoteVersion}, `
       : "";

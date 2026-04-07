@@ -26,7 +26,11 @@ export async function deleteCommand(
       cancelMessage: "Deletion cancelled.",
     });
 
-    if (confirmed === "cancelled" || !confirmed) {
+    if (confirmed === "cancelled") {
+      return;
+    }
+
+    if (!confirmed) {
       logger.info("Deletion cancelled.");
       return;
     }

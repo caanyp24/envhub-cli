@@ -30,7 +30,7 @@ envhub doctor [options]
 > If tracked secrets exist, doctor checks read access for each tracked secret.
 > If only some read checks fail, status is warning. If all read checks fail, status is error.
 > Only the provider configured in `.envhubrc.json` is identity-verified.
-> In human mode, a spinner updates per check while running, then results are printed in grouped sections.
+> In TTY human mode, a spinner updates per check while running; non-TTY runs (for example CI or redirected output) fall back to plain log lines. Results are then printed in grouped sections.
 > Timeout cases are reported as warnings with explicit `timed out after 10s` messages.
 
 ## Human Output Example

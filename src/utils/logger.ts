@@ -5,7 +5,6 @@ import {
   select as clackSelect,
   spinner as clackSpinner,
   log as clackLog,
-  cancel as clackCancel,
   isCancel,
 } from "@clack/prompts";
 import type { Option as ClackOption } from "@clack/prompts";
@@ -58,6 +57,10 @@ function isTableRenderOptions(value: unknown): value is TableRenderOptions {
 
 function shouldUseClack(): boolean {
   return Boolean(process.stdout.isTTY && process.stderr.isTTY);
+}
+
+function shouldUseInteractivePrompts(): boolean {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY && process.stderr.isTTY);
 }
 
 function printLine(message: string): void {
@@ -201,13 +204,16 @@ export const logger = {
   },
 
   async promptConfirm(options: PromptConfirmOptions): Promise<boolean | "cancelled"> {
+    if (!shouldUseInteractivePrompts()) {
+      return "cancelled";
+    }
+
     const result = await clackConfirm({
       message: options.message,
       initialValue: options.default,
     });
 
     if (isCancel(result)) {
-      clackCancel(options.cancelMessage ?? "Operation cancelled.");
       return "cancelled";
     }
 
@@ -215,6 +221,10 @@ export const logger = {
   },
 
   async promptInput(options: PromptInputOptions): Promise<string | "cancelled"> {
+    if (!shouldUseInteractivePrompts()) {
+      return "cancelled";
+    }
+
     const validate = options.validate;
     const result = await clackText({
       message: options.message,
@@ -225,7 +235,6 @@ export const logger = {
     });
 
     if (isCancel(result)) {
-      clackCancel(options.cancelMessage ?? "Operation cancelled.");
       return "cancelled";
     }
 
@@ -235,6 +244,10 @@ export const logger = {
   async promptSelect<T extends string | number | boolean>(
     options: PromptSelectOptions<T>
   ): Promise<T | "cancelled"> {
+    if (!shouldUseInteractivePrompts()) {
+      return "cancelled";
+    }
+
     const result = await clackSelect<T>({
       message: options.message,
       initialValue: options.default,
@@ -247,7 +260,6 @@ export const logger = {
     });
 
     if (isCancel(result)) {
-      clackCancel(options.cancelMessage ?? "Operation cancelled.");
       return "cancelled";
     }
 

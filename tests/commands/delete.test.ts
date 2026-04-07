@@ -108,6 +108,17 @@ describe("deleteCommand", () => {
     expect(mockProvider.delete).not.toHaveBeenCalled();
   });
 
+  it("should return silently when prompt is cancelled", async () => {
+    vi.mocked(logger.promptConfirm).mockResolvedValueOnce("cancelled");
+
+    await deleteCommand("my-app", {});
+
+    expect(logger.info).not.toHaveBeenCalledWith(
+      expect.stringContaining("Deletion cancelled")
+    );
+    expect(mockProvider.delete).not.toHaveBeenCalled();
+  });
+
   it("should show an error when deletion fails", async () => {
     mockProvider.delete.mockRejectedValueOnce(new Error("Access denied"));
 

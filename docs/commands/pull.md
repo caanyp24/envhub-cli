@@ -69,6 +69,8 @@ One line. Secret name, version, file path, number of keys. That's it.
 When `--dry-run` is used, envhub renders a preview (no file write):
 
 ```text
+✔ Dry-run pull 'my-app-dev' (v5) → ./.env (18 keys)
+
 ◇  Dry Run Pull Preview
 │  Environment: my-app-dev
 │  Version: local=v4, remote=v5 (remote ahead)
@@ -87,6 +89,8 @@ When `--dry-run` is used, envhub renders a preview (no file write):
 If nothing changed:
 
 ```text
+✔ Dry-run pull 'my-app-dev' (v5) → ./.env (18 keys)
+
 ℹ No changes detected. Local file is already up to date.
 ℹ Dry-run only compares ./.env with remote; no changes were applied.
 ```

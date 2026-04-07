@@ -310,6 +310,7 @@ describe("pushCommand", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("\nRun 'envhub pull' first to sync changes, or use --force to overwrite.")
     );
+    expect(process.exit).toHaveBeenCalledWith(1);
     expect(logger.promptConfirm).not.toHaveBeenCalled();
     expect(mockProvider.push).not.toHaveBeenCalled();
     conflictSpy.mockRestore();

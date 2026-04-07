@@ -82,6 +82,36 @@ vi.mock("@clack/prompts", () => ({
 
 import { pullCommand } from "../../src/commands/pull.js";
 
+async function withTTYOverride(
+  stdoutIsTTY: boolean,
+  stderrIsTTY: boolean,
+  run: () => Promise<void>
+): Promise<void> {
+  const originalStdoutTTY = process.stdout.isTTY;
+  const originalStderrTTY = process.stderr.isTTY;
+  Object.defineProperty(process.stdout, "isTTY", {
+    value: stdoutIsTTY,
+    configurable: true,
+  });
+  Object.defineProperty(process.stderr, "isTTY", {
+    value: stderrIsTTY,
+    configurable: true,
+  });
+
+  try {
+    await run();
+  } finally {
+    Object.defineProperty(process.stdout, "isTTY", {
+      value: originalStdoutTTY,
+      configurable: true,
+    });
+    Object.defineProperty(process.stderr, "isTTY", {
+      value: originalStderrTTY,
+      configurable: true,
+    });
+  }
+}
+
 // ── Tests ────────────────────────────────────────────────────────
 
 describe("pullCommand", () => {
@@ -246,23 +276,9 @@ describe("pullCommand", () => {
       name: "my-app",
     });
 
-    const stdoutTTY = process.stdout.isTTY;
-    const stderrTTY = process.stderr.isTTY;
-    Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
-    Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
-
-    try {
+    await withTTYOverride(true, true, async () => {
       await pullCommand("my-app", envFilePath, { dryRun: true });
-    } finally {
-      Object.defineProperty(process.stdout, "isTTY", {
-        value: stdoutTTY,
-        configurable: true,
-      });
-      Object.defineProperty(process.stderr, "isTTY", {
-        value: stderrTTY,
-        configurable: true,
-      });
-    }
+    });
 
     const content = await fs.readFile(envFilePath, "utf-8");
     expect(content).toBe(
@@ -315,23 +331,9 @@ describe("pullCommand", () => {
       name: "my-app",
     });
 
-    const stdoutTTY = process.stdout.isTTY;
-    const stderrTTY = process.stderr.isTTY;
-    Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });
-    Object.defineProperty(process.stderr, "isTTY", { value: true, configurable: true });
-
-    try {
+    await withTTYOverride(true, true, async () => {
       await pullCommand("my-app", envFilePath, { dryRun: true });
-    } finally {
-      Object.defineProperty(process.stdout, "isTTY", {
-        value: stdoutTTY,
-        configurable: true,
-      });
-      Object.defineProperty(process.stderr, "isTTY", {
-        value: stderrTTY,
-        configurable: true,
-      });
-    }
+    });
 
     expect(configManager.updateSecret).not.toHaveBeenCalled();
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
@@ -358,12 +360,7 @@ describe("pullCommand", () => {
       name: "my-app",
     });
 
-    const stdoutTTY = process.stdout.isTTY;
-    const stderrTTY = process.stderr.isTTY;
-    Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true });
-    Object.defineProperty(process.stderr, "isTTY", { value: false, configurable: true });
-
-    try {
+    await withTTYOverride(false, false, async () => {
       await pullCommand("my-app", envFilePath, { dryRun: true });
 
       expect(mockClackLog.step).not.toHaveBeenCalled();
@@ -372,16 +369,7 @@ describe("pullCommand", () => {
       expect(logger.log).toHaveBeenCalledWith(
         expect.stringContaining("Dry-run only compares")
       );
-    } finally {
-      Object.defineProperty(process.stdout, "isTTY", {
-        value: stdoutTTY,
-        configurable: true,
-      });
-      Object.defineProperty(process.stderr, "isTTY", {
-        value: stderrTTY,
-        configurable: true,
-      });
-    }
+    });
   });
 
   it("should fail dry-run when local file does not exist", async () => {

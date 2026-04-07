@@ -11,6 +11,11 @@ interface DryRunRenderContext {
   changes: EnvChange[];
 }
 
+interface RenderedChangeValues {
+  localValue: string;
+  remoteValue: string;
+}
+
 function versionStatusText(localVersion: number, remoteVersion: number): string {
   if (localVersion === remoteVersion) {
     return "equal";
@@ -39,6 +44,15 @@ function truncateCell(value: string, maxLength: number): string {
     return value;
   }
   return value.slice(0, maxLength - 3) + "...";
+}
+
+function formatChangeValues(change: EnvChange): RenderedChangeValues {
+  const localValue = truncateCell(change.oldValue ?? "-", 84);
+  const remoteValue = truncateCell(change.newValue ?? "-", 84);
+  return {
+    localValue: change.type === "added" ? "-" : localValue,
+    remoteValue: change.type === "removed" ? "-" : remoteValue,
+  };
 }
 
 function groupChanges(changes: EnvChange[]): Record<EnvChange["type"], EnvChange[]> {
@@ -119,14 +133,11 @@ function renderClack(context: DryRunRenderContext): void {
     const meta = groupMeta[type];
     const lines: string[] = [];
     group.forEach((change) => {
-      const localValue = truncateCell(change.oldValue ?? "-", 84);
-      const remoteValue = truncateCell(change.newValue ?? "-", 84);
-      const renderedLocal = change.type === "added" ? "-" : localValue;
-      const renderedRemote = change.type === "removed" ? "-" : remoteValue;
+      const { localValue, remoteValue } = formatChangeValues(change);
 
       lines.push(`  ${meta.symbol} ${meta.keyColor(change.key)}`);
-      lines.push(`    local : ${meta.valueColor(renderedLocal)}`);
-      lines.push(`    remote: ${meta.valueColor(renderedRemote)}`);
+      lines.push(`    local : ${meta.valueColor(localValue)}`);
+      lines.push(`    remote: ${meta.valueColor(remoteValue)}`);
     });
     note(lines.join("\n"), meta.headingColor(`${meta.label} (${group.length})`), {
       format: (text) => text,
@@ -175,11 +186,10 @@ function renderPlaintext(context: DryRunRenderContext): void {
 
     logger.log(`  ${groupLabels[type]} (${group.length})`);
     group.forEach((change) => {
-      const localValue = truncateCell(change.oldValue ?? "-", 84);
-      const remoteValue = truncateCell(change.newValue ?? "-", 84);
+      const { localValue, remoteValue } = formatChangeValues(change);
       logger.log(`    ${change.key}`);
-      logger.log(`      local : ${change.type === "added" ? "-" : localValue}`);
-      logger.log(`      remote: ${change.type === "removed" ? "-" : remoteValue}`);
+      logger.log(`      local : ${localValue}`);
+      logger.log(`      remote: ${remoteValue}`);
     });
   });
 

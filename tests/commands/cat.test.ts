@@ -72,11 +72,12 @@ describe("catCommand", () => {
     mockProvider.cat.mockResolvedValueOnce(
       "DB_HOST=localhost\nDB_PORT=5432\nAPI_KEY=secret123"
     );
+    mockProvider.getVersion.mockResolvedValueOnce(7);
 
     await catCommand("my-app");
 
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
-      expect.stringContaining("3 keys")
+      expect.stringContaining("v7, 3 keys")
     );
     expect(logger.log).toHaveBeenCalled();
     const logCalls = (logger.log as any).mock.calls.map((c: any) => c[0]).join("\n");

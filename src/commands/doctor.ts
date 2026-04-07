@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import { fromIni } from "@aws-sdk/credential-providers";
 import chalk from "chalk";
-import type { Ora } from "ora";
+import { note, spinner as clackSpinner, log as clackLog } from "@clack/prompts";
 import { logger } from "../utils/logger.js";
 
 const require = createRequire(import.meta.url);
@@ -50,12 +50,11 @@ interface DoctorCommandOptions {
 
 const execFileAsync = promisify(execFile);
 type DoctorCheckId = DoctorCheckResult["id"];
+type DoctorCheckGroup = "Version" | "Configuration" | "Provider" | "Permissions";
 type DoctorProgressEvent =
   | { phase: "start"; id: DoctorCheckId; title: string }
   | { phase: "end"; check: DoctorCheckResult };
 type DoctorProgressHandler = (event: DoctorProgressEvent) => void;
-
-type DoctorCheckGroup = "Version" | "Configuration" | "Provider" | "Permissions";
 
 class OperationTimeoutError extends Error {
   constructor(operation: string, timeoutMs: number) {
@@ -116,7 +115,11 @@ function groupForCheck(id: DoctorCheckId): DoctorCheckGroup {
 }
 
 function renderGroupHeader(group: DoctorCheckGroup): void {
-  logger.log(chalk.bold.cyan(`  ${group}`));
+  if (process.stdout.isTTY && process.stderr.isTTY) {
+    clackLog.step(chalk.bold.cyan(group), { spacing: 0 });
+    return;
+  }
+  logger.log(chalk.bold.cyan(`◇  ${group}`));
 }
 
 function summarizeChecks(checks: DoctorCheckResult[]): DoctorSummary {
@@ -550,32 +553,45 @@ function formatCheckMessage(check: DoctorCheckResult): string {
 }
 
 function logCheckLine(check: DoctorCheckResult): void {
-  const formatted = formatCheckMessage(check);
-  const lines = formatted.split("\n");
-  const firstLine = lines[0] ?? "";
-  logger.log(`  ${iconForStatus(check.status)} ${check.id}: ${firstLine}`);
-
-  for (let i = 1; i < lines.length; i++) {
-    logger.log(`  ${lines[i]}`);
+  const lines = formatCheckLines(check);
+  for (const line of lines) {
+    logger.log(`  ${line}`);
   }
 }
 
+function formatCheckLines(check: DoctorCheckResult): string[] {
+  const formatted = formatCheckMessage(check);
+  const splitLines = formatted.split("\n");
+  const firstLine = splitLines[0] ?? "";
+  const lines = [`${iconForStatus(check.status)} ${check.id}: ${firstLine}`];
+
+  for (let i = 1; i < splitLines.length; i++) {
+    lines.push(splitLines[i] ?? "");
+  }
+
+  return lines;
+}
+
 function renderHumanHeader(): void {
-  const title = "envhub doctor";
+  const title = chalk.bgCyan.black(" envhub doctor ");
+  const subtitle =
+    "Quick health check for version, config, provider identity/access,\n" +
+    "and tracked secret readability.";
   logger.newline();
-  logger.log(chalk.bold.cyan(`  ${title}`));
-  logger.log(chalk.dim(`  ${"─".repeat(title.length)}`));
-  logger.dim(
-    "  Quick health check for version, config, provider identity/access, and tracked secret readability."
-  );
-  logger.newline();
+  if (process.stdout.isTTY && process.stderr.isTTY) {
+    note(subtitle, title);
+  } else {
+    logger.log(title);
+    logger.dim(subtitle);
+  }
 }
 
 function renderHumanSummary(report: DoctorReport): void {
   logger.newline();
-  logger.log(chalk.bold("  Summary"));
+  logger.newline();
+  logger.newline();
   logger.log(
-    `    ${chalk.green(`${report.summary.pass} passed`)}, ` +
+    `${chalk.green(`${report.summary.pass} passed`)}, ` +
       `${chalk.yellow(`${report.summary.warn} warning(s)`)}, ` +
       `${chalk.red(`${report.summary.fail} failed`)}`
   );
@@ -586,7 +602,7 @@ function renderHumanSummary(report: DoctorReport): void {
   );
   if (hintedChecks.length > 0) {
     logger.newline();
-    logger.log(chalk.bold.yellow("  Hints"));
+    logger.log(chalk.bold.yellow("Hints"));
     const groupedHints = new Map<string, string[]>();
     for (const check of hintedChecks) {
       const detail = check.details as string;
@@ -596,7 +612,7 @@ function renderHumanSummary(report: DoctorReport): void {
     }
 
     for (const [detail, checkIds] of groupedHints) {
-      logger.log(`    ${chalk.yellow("⚠")} (${checkIds.join(", ")}): ${detail}`);
+      logger.log(`${chalk.yellow("⚠")} (${checkIds.join(", ")}): ${detail}`);
     }
   }
 
@@ -637,18 +653,21 @@ function validatePrefix(config: EnvhubConfig): DoctorCheckResult {
 
 async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<DoctorReport> {
   const checks: DoctorCheckResult[] = [];
+  const addCheck = (check: DoctorCheckResult): void => {
+    checks.push(check);
+    progress?.({ phase: "end", check });
+  };
+  const startCheck = (id: DoctorCheckId, title: string): void => {
+    progress?.({ phase: "start", id, title });
+  };
   let config: EnvhubConfig | null = null;
 
-  progress?.({ phase: "start", id: "version.check", title: "Version check" });
+  startCheck("version.check", "Version check");
   const versionCheck = await runVersionCheck();
-  checks.push(versionCheck);
-  progress?.({
-    phase: "end",
-    check: versionCheck,
-  });
+  addCheck(versionCheck);
 
   try {
-    progress?.({ phase: "start", id: "config.load", title: "Config loading" });
+    startCheck("config.load", "Config loading");
     config = await configManager.load();
     const configCheck: DoctorCheckResult = {
       id: "config.load",
@@ -656,11 +675,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       status: "pass",
       message: `Configuration loaded from ${configManager.getConfigPath()}.`,
     };
-    checks.push(configCheck);
-    progress?.({
-      phase: "end",
-      check: configCheck,
-    });
+    addCheck(configCheck);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown configuration error.";
@@ -671,74 +686,70 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       message: "Failed to load envhub configuration.",
       details: `${message} Run 'envhub init' to create or repair configuration.`,
     };
-    checks.push(configCheck);
-    progress?.({
-      phase: "end",
-      check: configCheck,
-    });
+    addCheck(configCheck);
 
+    startCheck("prefix", "Prefix validation");
     const prefixCheck: DoctorCheckResult = {
       id: "prefix",
       title: "Prefix validation",
       status: "warn",
       message: "Skipped because configuration could not be loaded.",
     };
-    checks.push(prefixCheck);
-    progress?.({ phase: "end", check: prefixCheck });
+    addCheck(prefixCheck);
 
+    startCheck("provider.init", "Provider initialization");
     const providerInitCheck: DoctorCheckResult = {
       id: "provider.init",
       title: "Provider initialization",
       status: "warn",
       message: "Skipped because configuration could not be loaded.",
     };
-    checks.push(providerInitCheck);
-    progress?.({ phase: "end", check: providerInitCheck });
+    addCheck(providerInitCheck);
 
+    startCheck("provider.identity", "Provider identity");
     const providerIdentityCheck: DoctorCheckResult = {
       id: "provider.identity",
       title: "Provider identity",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(providerIdentityCheck);
-    progress?.({ phase: "end", check: providerIdentityCheck });
+    addCheck(providerIdentityCheck);
 
+    startCheck("provider.identity_verified", "Provider identity verified");
     const providerIdentityVerifiedCheck: DoctorCheckResult = {
       id: "provider.identity_verified",
       title: "Provider identity verified",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(providerIdentityVerifiedCheck);
-    progress?.({ phase: "end", check: providerIdentityVerifiedCheck });
+    addCheck(providerIdentityVerifiedCheck);
 
+    startCheck("provider.reachability_and_auth", "Provider reachability/auth");
     const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(reachabilityCheck);
-    progress?.({ phase: "end", check: reachabilityCheck });
+    addCheck(reachabilityCheck);
 
+    startCheck("provider.list_rights", "Provider list rights");
     const listRightsCheck: DoctorCheckResult = {
       id: "provider.list_rights",
       title: "Provider list rights",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(listRightsCheck);
-    progress?.({ phase: "end", check: listRightsCheck });
+    addCheck(listRightsCheck);
 
+    startCheck("provider.read_rights", "Provider read rights");
     const readRightsCheck: DoctorCheckResult = {
       id: "provider.read_rights",
       title: "Provider read rights",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(readRightsCheck);
-    progress?.({ phase: "end", check: readRightsCheck });
+    addCheck(readRightsCheck);
 
     return {
       checks,
@@ -746,17 +757,13 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
     };
   }
 
-  progress?.({ phase: "start", id: "prefix", title: "Prefix validation" });
+  startCheck("prefix", "Prefix validation");
   const prefixCheck = validatePrefix(config);
-  checks.push(prefixCheck);
-  progress?.({
-    phase: "end",
-    check: prefixCheck,
-  });
+  addCheck(prefixCheck);
 
   let provider: ReturnType<typeof ProviderFactory.createProvider> | null = null;
   try {
-    progress?.({ phase: "start", id: "provider.init", title: "Provider initialization" });
+    startCheck("provider.init", "Provider initialization");
     provider = ProviderFactory.createProvider(config);
     const initCheck: DoctorCheckResult = {
       id: "provider.init",
@@ -764,11 +771,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       status: "pass",
       message: `Provider '${provider.name}' initialized successfully.`,
     };
-    checks.push(initCheck);
-    progress?.({
-      phase: "end",
-      check: initCheck,
-    });
+    addCheck(initCheck);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown provider error.";
     const initCheck: DoctorCheckResult = {
@@ -778,55 +781,51 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       message: "Failed to initialize provider from configuration.",
       details: `${message} Check provider-specific fields in .envhubrc.json.`,
     };
-    checks.push(initCheck);
-    progress?.({
-      phase: "end",
-      check: initCheck,
-    });
+    addCheck(initCheck);
+    startCheck("provider.identity", "Provider identity");
     const providerIdentityCheck: DoctorCheckResult = {
       id: "provider.identity",
       title: "Provider identity",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(providerIdentityCheck);
-    progress?.({ phase: "end", check: providerIdentityCheck });
+    addCheck(providerIdentityCheck);
 
+    startCheck("provider.identity_verified", "Provider identity verified");
     const providerIdentityVerifiedCheck: DoctorCheckResult = {
       id: "provider.identity_verified",
       title: "Provider identity verified",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(providerIdentityVerifiedCheck);
-    progress?.({ phase: "end", check: providerIdentityVerifiedCheck });
+    addCheck(providerIdentityVerifiedCheck);
 
+    startCheck("provider.reachability_and_auth", "Provider reachability/auth");
     const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
       title: "Provider reachability/auth",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(reachabilityCheck);
-    progress?.({ phase: "end", check: reachabilityCheck });
+    addCheck(reachabilityCheck);
 
+    startCheck("provider.list_rights", "Provider list rights");
     const listRightsCheck: DoctorCheckResult = {
       id: "provider.list_rights",
       title: "Provider list rights",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(listRightsCheck);
-    progress?.({ phase: "end", check: listRightsCheck });
+    addCheck(listRightsCheck);
 
+    startCheck("provider.read_rights", "Provider read rights");
     const readRightsCheck: DoctorCheckResult = {
       id: "provider.read_rights",
       title: "Provider read rights",
       status: "warn",
       message: "Skipped because provider could not be initialized.",
     };
-    checks.push(readRightsCheck);
-    progress?.({ phase: "end", check: readRightsCheck });
+    addCheck(readRightsCheck);
 
     return {
       checks,
@@ -834,7 +833,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
     };
   }
 
-  progress?.({ phase: "start", id: "provider.identity", title: "Provider identity" });
+  startCheck("provider.identity", "Provider identity");
   if (config.provider === "aws" && config.aws) {
     const identityCheck: DoctorCheckResult = {
       id: "provider.identity",
@@ -842,11 +841,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       status: "pass",
       message: `AWS context: profile '${config.aws.profile}', region '${config.aws.region}'.`,
     };
-    checks.push(identityCheck);
-    progress?.({
-      phase: "end",
-      check: identityCheck,
-    });
+    addCheck(identityCheck);
   } else if (config.provider === "gcp" && config.gcp) {
     const projectName = await resolveGcpProjectName(config.gcp.projectId);
     const identityCheck: DoctorCheckResult = {
@@ -857,11 +852,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
         ? `GCP context: project '${config.gcp.projectId}' (${projectName}).`
         : `GCP context: project '${config.gcp.projectId}'.`,
     };
-    checks.push(identityCheck);
-    progress?.({
-      phase: "end",
-      check: identityCheck,
-    });
+    addCheck(identityCheck);
   } else if (config.provider === "azure" && config.azure) {
     const identityCheck: DoctorCheckResult = {
       id: "provider.identity",
@@ -869,11 +860,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       status: "pass",
       message: `Azure context: vault '${config.azure.vaultUrl}'.`,
     };
-    checks.push(identityCheck);
-    progress?.({
-      phase: "end",
-      check: identityCheck,
-    });
+    addCheck(identityCheck);
   } else {
     const identityCheck: DoctorCheckResult = {
       id: "provider.identity",
@@ -881,31 +868,15 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       status: "warn",
       message: "Provider identity context is not available in configuration.",
     };
-    checks.push(identityCheck);
-    progress?.({
-      phase: "end",
-      check: identityCheck,
-    });
+    addCheck(identityCheck);
   }
 
-  progress?.({
-    phase: "start",
-    id: "provider.identity_verified",
-    title: "Provider identity verified",
-  });
+  startCheck("provider.identity_verified", "Provider identity verified");
   const identityVerifiedCheck = await verifyProviderIdentity(config);
-  checks.push(identityVerifiedCheck);
-  progress?.({
-    phase: "end",
-    check: identityVerifiedCheck,
-  });
+  addCheck(identityVerifiedCheck);
 
   try {
-    progress?.({
-      phase: "start",
-      id: "provider.reachability_and_auth",
-      title: "Provider reachability/auth",
-    });
+    startCheck("provider.reachability_and_auth", "Provider reachability/auth");
     await withTimeout("Provider list check", provider.list());
     const reachabilityCheck: DoctorCheckResult = {
       id: "provider.reachability_and_auth",
@@ -913,38 +884,21 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       status: "pass",
       message: `Connected to ${provider.name} and authenticated successfully.`,
     };
-    checks.push(reachabilityCheck);
-    progress?.({
-      phase: "end",
-      check: reachabilityCheck,
-    });
-
-    progress?.({
-      phase: "start",
-      id: "provider.list_rights",
-      title: "Provider list rights",
-    });
+    addCheck(reachabilityCheck);
+    startCheck("provider.list_rights", "Provider list rights");
     const listRightsCheck: DoctorCheckResult = {
       id: "provider.list_rights",
       title: "Provider list rights",
       status: "pass",
       message: "Current identity can list envhub-managed secrets.",
     };
-    checks.push(listRightsCheck);
-    progress?.({
-      phase: "end",
-      check: listRightsCheck,
-    });
+    addCheck(listRightsCheck);
 
     const trackedSecretNames = Object.keys(config.secrets).sort((a, b) =>
       a.localeCompare(b)
     );
 
-    progress?.({
-      phase: "start",
-      id: "provider.read_rights",
-      title: "Provider read rights",
-    });
+    startCheck("provider.read_rights", "Provider read rights");
     if (trackedSecretNames.length === 0) {
       const readCheck: DoctorCheckResult = {
         id: "provider.read_rights",
@@ -953,11 +907,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
         message:
           "Skipped because no tracked secrets are configured. Add secrets via push/pull first.",
       };
-      checks.push(readCheck);
-      progress?.({
-        phase: "end",
-        check: readCheck,
-      });
+      addCheck(readCheck);
     } else {
       const passedSecrets: string[] = [];
       const failedSecrets: string[] = [];
@@ -988,11 +938,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
             `Read checks passed for all tracked secrets (${trackedSecretNames.length}/${trackedSecretNames.length}).\n` +
             passedLines.join("\n"),
         };
-        checks.push(readCheck);
-        progress?.({
-          phase: "end",
-          check: readCheck,
-        });
+        addCheck(readCheck);
       } else {
         const classification = classifyProviderFailure(provider.name, firstFailureMessage);
         if (failedSecrets.length === trackedSecretNames.length) {
@@ -1010,11 +956,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
               failedLines.join("\n"),
             details: classification.details,
           };
-          checks.push(readCheck);
-          progress?.({
-            phase: "end",
-            check: readCheck,
-          });
+          addCheck(readCheck);
         } else {
           const passedLines = passedSecrets.map((name) => `    ✔ ${name}`);
           const failedLines = failedSecrets.map((name) => `    ✖ ${name}`);
@@ -1029,11 +971,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
               failedLines.join("\n"),
             details: classification.details,
           };
-          checks.push(readCheck);
-          progress?.({
-            phase: "end",
-            check: readCheck,
-          });
+          addCheck(readCheck);
         }
       }
     }
@@ -1048,17 +986,8 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
         details:
           "Timeout while contacting provider. Check network/proxy/VPN and retry.",
       };
-      checks.push(reachabilityTimeoutCheck);
-      progress?.({
-        phase: "end",
-        check: reachabilityTimeoutCheck,
-      });
-
-      progress?.({
-        phase: "start",
-        id: "provider.list_rights",
-        title: "Provider list rights",
-      });
+      addCheck(reachabilityTimeoutCheck);
+      startCheck("provider.list_rights", "Provider list rights");
       const listTimeoutCheck: DoctorCheckResult = {
         id: "provider.list_rights",
         title: "Provider list rights",
@@ -1066,17 +995,8 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
         message: "Skipped because list check timed out after 10s.",
         details: "Retry when provider connectivity is stable.",
       };
-      checks.push(listTimeoutCheck);
-      progress?.({
-        phase: "end",
-        check: listTimeoutCheck,
-      });
-
-      progress?.({
-        phase: "start",
-        id: "provider.read_rights",
-        title: "Provider read rights",
-      });
+      addCheck(listTimeoutCheck);
+      startCheck("provider.read_rights", "Provider read rights");
       const readTimeoutCheck: DoctorCheckResult = {
         id: "provider.read_rights",
         title: "Provider read rights",
@@ -1084,11 +1004,7 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
         message: "Skipped because provider list check timed out after 10s.",
         details: "Retry when provider connectivity is stable.",
       };
-      checks.push(readTimeoutCheck);
-      progress?.({
-        phase: "end",
-        check: readTimeoutCheck,
-      });
+      addCheck(readTimeoutCheck);
       return {
         checks,
         summary: summarizeChecks(checks),
@@ -1102,17 +1018,8 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       message: classification.message,
       details: classification.details,
     };
-    checks.push(reachabilityCheck);
-    progress?.({
-      phase: "end",
-      check: reachabilityCheck,
-    });
-
-    progress?.({
-      phase: "start",
-      id: "provider.list_rights",
-      title: "Provider list rights",
-    });
+    addCheck(reachabilityCheck);
+    startCheck("provider.list_rights", "Provider list rights");
     const listRightsCheck: DoctorCheckResult = {
       id: "provider.list_rights",
       title: "Provider list rights",
@@ -1120,28 +1027,15 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
       message: "Could not verify permission to list envhub-managed secrets.",
       details: classification.details,
     };
-    checks.push(listRightsCheck);
-    progress?.({
-      phase: "end",
-      check: listRightsCheck,
-    });
-
-    progress?.({
-      phase: "start",
-      id: "provider.read_rights",
-      title: "Provider read rights",
-    });
+    addCheck(listRightsCheck);
+    startCheck("provider.read_rights", "Provider read rights");
     const readCheck: DoctorCheckResult = {
       id: "provider.read_rights",
       title: "Provider read rights",
       status: "warn",
       message: "Skipped because list permission check failed.",
     };
-    checks.push(readCheck);
-    progress?.({
-      phase: "end",
-      check: readCheck,
-    });
+    addCheck(readCheck);
   }
 
   return {
@@ -1155,23 +1049,41 @@ async function runDoctorChecks(progress?: DoctorProgressHandler): Promise<Doctor
  * Runs read-only health checks for local config and provider connectivity.
  */
 export async function doctorCommand(options: DoctorCommandOptions): Promise<void> {
-  let currentSpinner: Ora | null = null;
-  let currentGroup: DoctorCheckGroup | null = null;
   if (!options.json) {
     renderHumanHeader();
   }
+  const isInteractiveTty = Boolean(process.stdout.isTTY && process.stderr.isTTY);
+  const spinnerEnabled = !options.json && isInteractiveTty && process.env.VITEST !== "true";
+  const checkSpinner = spinnerEnabled ? clackSpinner() : null;
+  let spinnerStarted = false;
   const progress: DoctorProgressHandler | undefined = options.json
     ? undefined
     : (event) => {
       if (event.phase === "start") {
-        currentSpinner = logger.spinner(`Checking ${event.id}...`);
+        if (!checkSpinner || checkSpinner.isCancelled) {
+          return;
+        }
+        if (!spinnerStarted) {
+          checkSpinner.start(`Checking ${event.id}...`);
+          spinnerStarted = true;
+        } else {
+          checkSpinner.message(`Checking ${event.id}...`);
+        }
         return;
       }
-      if (currentSpinner) {
-        currentSpinner.stop();
-        currentSpinner = null;
-      }
-      const group = groupForCheck(event.check.id);
+    };
+
+  const report = await runDoctorChecks(progress);
+  if (checkSpinner && spinnerStarted) {
+    checkSpinner.clear();
+  }
+
+  if (options.json) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    let currentGroup: DoctorCheckGroup | null = null;
+    for (const check of report.checks) {
+      const group = groupForCheck(check.id);
       if (group !== currentGroup) {
         if (currentGroup !== null) {
           logger.newline();
@@ -1179,14 +1091,8 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
         renderGroupHeader(group);
         currentGroup = group;
       }
-      logCheckLine(event.check);
-    };
-
-  const report = await runDoctorChecks(progress);
-
-  if (options.json) {
-    console.log(JSON.stringify(report, null, 2));
-  } else {
+      logCheckLine(check);
+    }
     renderHumanSummary(report);
   }
 

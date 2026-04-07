@@ -48,9 +48,14 @@ npx envhub push my-app-dev ./.env -m "Updated Redis URL"
 ```
 
 ```
-Changes to push:
-  Changed (1):
-    ~ REDIS_URL
+◇  Changes to push
+│  Environment: my-app-dev
+│  File: ./.env
+│
+◇  CHANGED (1)
+│  ~ REDIS_URL
+│    local : redis://localhost:6380
+│    remote: redis://localhost:6379
 
 ? Push these changes? (Y/n)
 

@@ -30,27 +30,42 @@ envhub doctor [options]
 > If tracked secrets exist, doctor checks read access for each tracked secret.
 > If only some read checks fail, status is warning. If all read checks fail, status is error.
 > Only the provider configured in `.envhubrc.json` is identity-verified.
-> In human mode, checks are shown progressively (loading, then result per check).
+> In human mode, a spinner updates per check while running, then results are printed in grouped sections.
 > Timeout cases are reported as warnings with explicit `timed out after 10s` messages.
 
 ## Human Output Example
 
 ```text
-envhub doctor
-─────────────
-Quick health check for version, config, provider identity/access, and tracked secret readability.
+◇  envhub doctor
+│  Quick health check for version, config, provider identity/access,
+│  and tracked secret readability.
 
-✔ version.check: Version is up to date (0.3.1).
-✔ config.load: Configuration loaded from /project/.envhubrc.json.
-✔ prefix: Prefix is valid ('envhub-').
-✔ provider.init: Provider 'aws' initialized successfully.
-✔ provider.identity: AWS context: profile 'default', region 'eu-central-1'.
-✔ provider.identity_verified: Verified AWS identity: arn:aws:iam::123456789012:user/jane.doe (account 123456789012).
-✔ provider.reachability_and_auth: Connected to aws and authenticated successfully.
-✔ provider.list_rights: Current identity can list envhub-managed secrets.
-⚠ provider.read_rights: Skipped because no tracked secrets are configured. Add secrets via push/pull first.
+◇  Version
+  ✔ version.check: Version is up to date (0.3.1).
 
-Summary: 8 passed, 1 warning(s), 0 failed
+◇  Configuration
+  ✔ config.load: Configuration loaded from /project/.envhubrc.json.
+  ✔ prefix: Prefix is valid ('envhub-').
+
+◇  Provider
+  ✔ provider.init: Provider 'aws' initialized successfully.
+  ✔ provider.identity: AWS context: profile 'default', region 'eu-central-1'.
+  ✔ provider.identity_verified: Verified AWS identity: arn:aws:iam::123456789012:user/jane.doe (account 123456789012).
+  ✔ provider.reachability_and_auth: Connected to aws and authenticated successfully.
+
+◇  Permissions
+  ✔ provider.list_rights: Current identity can list envhub-managed secrets.
+  ⚠ provider.read_rights: Skipped because no tracked secrets are configured. Add secrets via push/pull first.
+
+8 passed, 1 warning(s), 0 failed
+```
+
+Example spinner progression while checks run:
+
+```text
+◒  Checking version.check...
+◐  Checking config.load...
+◑  Checking provider.init...
 ```
 
 ## JSON Output Example

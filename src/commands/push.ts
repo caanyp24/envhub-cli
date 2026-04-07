@@ -1,6 +1,5 @@
 import * as path from "node:path";
 import chalk from "chalk";
-import { confirm } from "@inquirer/prompts";
 import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { VersionControl } from "../versioning/version-control.js";
@@ -16,8 +15,8 @@ import {
   stripEnvhubHeader,
 } from "../utils/envhub-header.js";
 import { diffEnvContents } from "../utils/diff.js";
-import type { EnvChange } from "../utils/diff.js";
 import { logger } from "../utils/logger.js";
+import { renderPushPreview } from "../utils/push-preview-ui.js";
 
 interface PushCommandOptions {
   message?: string;
@@ -64,119 +63,30 @@ function isSecretNotFoundError(error: unknown): boolean {
   );
 }
 
-function isPromptCancellationError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  return (
-    error.name === "ExitPromptError" ||
-    error.name === "AbortPromptError" ||
-    error.message.toLowerCase().includes("force closed")
-  );
-}
-
 async function confirmOrCancel(
   message: string,
   defaultValue: boolean
 ): Promise<boolean | "cancelled"> {
-  try {
-    return await confirm({
-      message,
-      default: defaultValue,
-    });
-  } catch (error) {
-    if (isPromptCancellationError(error)) {
-      logger.info("Push cancelled.");
-      return "cancelled";
-    }
-    throw error;
+  const result = await logger.promptConfirm({
+    message,
+    default: defaultValue,
+    cancelMessage: "Push cancelled.",
+  });
+  if (result === "cancelled") {
+    logger.info("Push cancelled.");
+    return "cancelled";
   }
+  return result;
 }
 
-function truncateCell(value: string, maxLength: number): string {
-  if (value.length <= maxLength) {
-    return value;
-  }
-  return value.slice(0, maxLength - 3) + "...";
-}
-
-function formatPushChangesBoxes(changes: EnvChange[]): string {
-  if (changes.length === 0) {
-    return "  No changes detected.";
-  }
-
-  const groupMeta: Record<EnvChange["type"], { label: string; emoji: string }> = {
-    added: { label: "ADDED", emoji: "🟢" },
-    changed: { label: "CHANGED", emoji: "🟡" },
-    removed: { label: "REMOVED", emoji: "🔴" },
-  };
-
-  const renderGroup = (
-    type: EnvChange["type"],
-    group: EnvChange[],
-    colorize: (text: string) => string,
-  ): string[] => {
-    if (group.length === 0) {
-      return [];
-    }
-
-    const { label, emoji } = groupMeta[type];
-    const lines: string[] = [];
-    lines.push(colorize(`  ┌─ ${chalk.bold(`${emoji} ${label} (${group.length})`)}`));
-    lines.push(colorize("  │"));
-
-    for (const change of group) {
-      const localValue = truncateCell(change.newValue ?? "", 84);
-      const remoteValue = truncateCell(change.oldValue ?? "", 84);
-
-      lines.push(`${colorize("  │ ")}${change.key}`);
-
-      if (change.type === "added") {
-        lines.push(`${colorize("  │ ")}  local : ${localValue}`);
-      } else if (change.type === "removed") {
-        lines.push(`${colorize("  │ ")}  remote: ${remoteValue}`);
-      } else {
-        lines.push(`${colorize("  │ ")}  local : ${localValue}`);
-        lines.push(`${colorize("  │ ")}  remote: ${remoteValue}`);
-      }
-
-      lines.push(colorize("  │"));
-    }
-
-    lines.push(colorize("  └──"));
-    return lines;
-  };
-
-  const added = changes.filter((c) => c.type === "added");
-  const changed = changes.filter((c) => c.type === "changed");
-  const removed = changes.filter((c) => c.type === "removed");
-
-  return [
-    ...renderGroup("added", added, chalk.greenBright),
-    ...renderGroup("changed", changed, chalk.yellowBright),
-    ...renderGroup("removed", removed, chalk.redBright),
-  ].join("\n");
-}
-
-function formatPushPreviewBox(environment: string, filePath: string): string {
-  return [
-    chalk.bold("  ┌─ Push Preview"),
-    `  │ ${chalk.bold("Environment:")} ${chalk.bold(environment)}`,
-    `  │ ${chalk.bold("File:")} ${chalk.bold(filePath)}`,
-    "  └────",
-  ].join("\n");
-}
-
-function summarizePushChanges(changes: EnvChange[]): {
-  added: number;
-  changed: number;
-  removed: number;
-} {
-  return {
-    added: changes.filter((c) => c.type === "added").length,
-    changed: changes.filter((c) => c.type === "changed").length,
-    removed: changes.filter((c) => c.type === "removed").length,
-  };
+function formatVersionConflictMessage(
+  localVersion: number,
+  remoteVersion: number
+): string {
+  return (
+    `Remote version (${remoteVersion}) is newer than your local version (${localVersion}).\n` +
+    "Run 'envhub pull' first to sync changes, or use --force to overwrite."
+  );
 }
 
 /**
@@ -268,22 +178,14 @@ export async function pushCommand(
     const versionCheck = await versionControl.checkBeforePush(secretName);
 
     if (!versionCheck.canPush) {
-      logger.warn(versionCheck.reason ?? "Version conflict detected.");
-      logger.newline();
-
-      const forcePush = await confirmOrCancel(
-        "Do you want to force push anyway?",
-        false
+      logger.warn(
+        formatVersionConflictMessage(
+          versionCheck.localVersion,
+          versionCheck.remoteVersion
+        )
       );
-
-      if (forcePush === "cancelled") {
-        return;
-      }
-
-      if (!forcePush) {
-        logger.info("Push cancelled. Run 'envhub pull' first.");
-        return;
-      }
+      logger.info("Push cancelled.");
+      return;
     }
   }
 
@@ -298,20 +200,12 @@ export async function pushCommand(
 
     if (changes.length > 0) {
       logger.newline();
-      logger.log(formatPushPreviewBox(secretName, filePath));
-      logger.newline();
-      logger.log(chalk.bold("  Changes to push"));
-      logger.log(chalk.dim("  local = value from your .env, remote = current cloud value"));
-      logger.newline();
-      logger.log(formatPushChangesBoxes(changes));
-      const summary = summarizePushChanges(changes);
-      logger.newline();
-      logger.log(chalk.bold("  Summary"));
-      logger.log(
-        `    ${chalk.green(`${summary.added} added`)}, ` +
-        `${chalk.yellow(`${summary.changed} changed`)}, ` +
-        `${chalk.red(`${summary.removed} removed`)}`
-      );
+      renderPushPreview({
+        environment: secretName,
+        filePath,
+        changes,
+        force: options.force,
+      });
       logger.newline();
 
       if (!options.force) {

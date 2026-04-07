@@ -16,7 +16,7 @@ function formatEnvTable(content: string, options: CatCommandOptions = {}): strin
   const shouldMaskValues = options.masked ?? false;
 
   if (entries.size === 0) {
-    return chalk.dim("  (empty)");
+    return chalk.dim("(empty)");
   }
 
   // Find the longest key for alignment
@@ -33,7 +33,7 @@ function formatEnvTable(content: string, options: CatCommandOptions = {}): strin
   for (const [key, value] of entries) {
     const paddedKey = key.padEnd(maxKeyLen);
     const renderedValue = shouldMaskValues ? maskValue(value) : value;
-    lines.push(`  ${chalk.bold.cyan(paddedKey)}  ${chalk.dim("=")}  ${renderedValue}`);
+    lines.push(`${chalk.bold.cyan(paddedKey)}  ${chalk.dim("=")}  ${renderedValue}`);
   }
 
   lines.push(separator);
@@ -66,9 +66,17 @@ export async function catCommand(
   const spinner = logger.spinner(`Reading '${secretName}'...`);
 
   try {
-    const content = await provider.cat(secretName);
+    const [content, remoteVersion] = await Promise.all([
+      provider.cat(secretName),
+      provider.getVersion(secretName),
+    ]);
     const entries = parseEnvContent(content);
-    spinner.succeed(`${chalk.bold(secretName)} ${chalk.dim(`(${entries.size} keys)`)}`);
+    const versionSegment = typeof remoteVersion === "number"
+      ? `v${remoteVersion}, `
+      : "";
+    spinner.succeed(
+      `${chalk.bold(secretName)} ${chalk.dim(`(${versionSegment}${entries.size} keys)`)}`
+    );
 
     logger.newline();
     logger.log(formatEnvTable(content, options));

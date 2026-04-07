@@ -55,16 +55,12 @@ vi.mock("../../src/utils/logger.js", () => ({
     dim: vi.fn(),
     newline: vi.fn(),
     spinner: vi.fn().mockReturnValue(mockSpinner),
+    promptConfirm: vi.fn().mockResolvedValue(true),
   },
-}));
-
-vi.mock("@inquirer/prompts", () => ({
-  confirm: vi.fn().mockResolvedValue(true),
 }));
 
 import { deleteCommand } from "../../src/commands/delete.js";
 import { logger } from "../../src/utils/logger.js";
-import { confirm } from "@inquirer/prompts";
 
 // ── Tests ────────────────────────────────────────────────────────
 
@@ -89,7 +85,7 @@ describe("deleteCommand", () => {
     expect(mockSpinner.succeed).toHaveBeenCalledWith(
       expect.stringContaining("Deleted 'my-app'")
     );
-    expect(confirm).not.toHaveBeenCalled();
+    expect(logger.promptConfirm).not.toHaveBeenCalled();
   });
 
   it("should ask for confirmation without force flag", async () => {
@@ -97,12 +93,12 @@ describe("deleteCommand", () => {
 
     await deleteCommand("my-app", {});
 
-    expect(confirm).toHaveBeenCalled();
+    expect(logger.promptConfirm).toHaveBeenCalled();
     expect(mockProvider.delete).toHaveBeenCalled();
   });
 
   it("should cancel deletion when user declines", async () => {
-    (confirm as any).mockResolvedValueOnce(false);
+    vi.mocked(logger.promptConfirm).mockResolvedValueOnce(false);
 
     await deleteCommand("my-app", {});
 

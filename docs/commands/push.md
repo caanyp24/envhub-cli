@@ -48,7 +48,7 @@ npx envhub push my-app-dev ./.env --force
 
 envhub shows all entries that will be created and asks for confirmation:
 
-```
+```text
   New secret with 4 entries:
     + DATABASE_URL=postgres://user:pass@db.example.com:5432/mydb
     + STRIPE_API_KEY=sk_test_example_key_123
@@ -64,7 +64,7 @@ envhub shows all entries that will be created and asks for confirmation:
 
 envhub compares your local file with the remote version and shows a diff:
 
-```
+```text
 ◇  Changes to push
 │  Environment: my-app-dev
 │  File: ./.env
@@ -97,7 +97,7 @@ envhub compares your local file with the remote version and shows a diff:
 
 If your local file is identical to the remote version:
 
-```
+```text
 ℹ No changes detected. Remote is already up to date.
 ```
 
@@ -109,7 +109,7 @@ All secrets are prefixed with the configured prefix (default: `envhub-`) to avoi
 
 If someone else has pushed a newer version since your last pull, you'll see:
 
-```
+```text
 ⚠ Remote version (5) is newer than your local version (3).
   Run 'envhub pull' first to get the latest changes, or use --force to overwrite.
 ℹ Push cancelled.

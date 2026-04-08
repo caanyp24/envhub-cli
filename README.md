@@ -1,32 +1,31 @@
-# ENVHUB CLI
+<div align="center">
+  <h1>ENVHUB CLI</h1>
+  <p><strong>Share <code>.env</code> files securely across your team using your own cloud secret manager.</strong></p>
+  <p>
+    <a href="https://www.npmjs.com/package/envhub-cli"><img src="https://img.shields.io/npm/v/envhub-cli?style=for-the-badge" alt="npm version"></a>
+    <a href="https://github.com/caanyp24/envhub-cli"><img src="https://img.shields.io/github/license/caanyp24/envhub-cli?style=for-the-badge" alt="license"></a>
+    <img src="https://img.shields.io/badge/node-%3E%3D18-3C873A?style=for-the-badge" alt="node version">
+  </p>
+</div>
 
-Share `.env` files in your team without sharing secrets in chat.
-
-`envhub` is a developer-first CLI that syncs environment files through your existing cloud secrets manager (AWS, Azure, or GCP), with version history and safer collaboration flows.
-
-## The Problem
-
-Most teams still pass secrets around in Slack/Teams, copy keys between machines, and overwrite each other’s `.env` files.
-
-This creates:
-- Security risk from accidental secret exposure
-- Slow onboarding for new developers
-- Broken local setups from outdated variables
-- No clear audit trail of who changed what
+`envhub` is a developer-first CLI to push and pull environment files through AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager with safer team collaboration and built-in versioning.
 
 ## Why ENVHUB
 
-- Keep secrets in your own cloud provider instead of chat messages
-- Push/pull `.env` files in seconds with one CLI workflow
-- Use built-in versioning to reduce accidental overwrites
-- Onboard teammates faster with the interactive `init` wizard
-- Work with AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager
+- Stop sharing secrets in Slack, Teams, or email
+- Sync `.env` files with simple `push` and `pull` commands
+- Reduce accidental overwrites with version tracking
+- Set up projects fast with an interactive `init` wizard
+- Keep full control by using your existing cloud provider
 
-## Who It Is For
+## Table of Contents
 
-- Startup teams shipping fast with multiple environments
-- Freelancers/consultants managing many client projects
-- Engineering teams that want less `.env` chaos and safer secret handling
+- [Quick Start](#quick-start)
+- [Command Overview](#command-overview)
+- [Documentation](#documentation)
+- [Supported Providers](#supported-providers)
+- [Requirements](#requirements)
+- [License](#license)
 
 ## Quick Start
 
@@ -34,6 +33,12 @@ This creates:
 
 ```bash
 npm install --save-dev envhub-cli
+```
+
+Or install globally:
+
+```bash
+npm install -g envhub-cli
 ```
 
 ### 2. Initialize project
@@ -67,6 +72,19 @@ npx envhub pull my-app-dev ./.env
 | [`grant`](./docs/commands/grant.md) | Grant user access (AWS only) |
 | [`revoke`](./docs/commands/revoke.md) | Revoke user access (AWS only) |
 | [`doctor`](./docs/commands/doctor.md) | Validate setup and provider access |
+
+## Common Workflow
+
+```bash
+# Initialize once per project
+npx envhub init
+
+# Push local changes
+npx envhub push my-app-dev ./.env -m "Updated API keys"
+
+# Teammates pull the latest config
+npx envhub pull my-app-dev ./.env
+```
 
 ## Documentation
 

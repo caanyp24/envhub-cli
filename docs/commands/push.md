@@ -48,7 +48,7 @@ npx envhub push my-app-dev ./.env --force
 
 envhub shows all entries that will be created and asks for confirmation:
 
-```
+```text
   New secret with 4 entries:
     + DATABASE_URL=postgres://user:pass@db.example.com:5432/mydb
     + STRIPE_API_KEY=sk_test_example_key_123
@@ -64,27 +64,28 @@ envhub shows all entries that will be created and asks for confirmation:
 
 envhub compares your local file with the remote version and shows a diff:
 
-```
+```text
 ◇  Changes to push
 │  Environment: my-app-dev
 │  File: ./.env
-
-  ◇  ADDED (1)
-  │
-  │ + SENTRY_DSN
-  │   local : https://example.ingest.sentry.io/123
-  │
-  ◇  CHANGED (1)
-  │
-  │ ~ DATABASE_URL
-  │   local : postgres://user:pass@new-host:5432/mydb
-  │   remote: postgres://user:pass@old-host:5432/mydb
-  │
-  ◇  REMOVED (1)
-  │
-  │ - OLD_KEY
-  │   remote: legacy-value
-  1 added, 1 changed, 1 removed
+│
+◇  ADDED (1)
+│
+│ + SENTRY_DSN
+│   local : https://example.ingest.sentry.io/123
+│
+◇  CHANGED (1)
+│
+│ ~ DATABASE_URL
+│   local : postgres://user:pass@new-host:5432/mydb
+│   remote: postgres://user:pass@old-host:5432/mydb
+│
+◇  REMOVED (1)
+│
+│ - OLD_KEY
+│   remote: legacy-value
+│
+1 added, 1 changed, 1 removed
 
 ? Push these changes? (Y/n)
 
@@ -96,22 +97,21 @@ envhub compares your local file with the remote version and shows a diff:
 
 If your local file is identical to the remote version:
 
-```
+```text
 ℹ No changes detected. Remote is already up to date.
 ```
 
 ## Secret Naming
 
-All secrets are prefixed with the configured prefix (default: `envhub-`) to avoid namespace pollution in your cloud provider. So `my-app-dev` becomes `envhub-my-app-dev` in AWS Secrets Manager.
+All secrets are prefixed with the configured prefix (default: `envhub-`) to avoid namespace pollution in your cloud provider. So `my-app-dev` becomes `envhub-my-app-dev` in AWS Secrets Manager, Azure Key Vault and GCP.
 
 ## Version Conflict
 
 If someone else has pushed a newer version since your last pull, you'll see:
 
-```
+```text
 ⚠ Remote version (5) is newer than your local version (3).
-  Run 'envhub pull' first to get the latest changes,
-  or use --force to overwrite.
+  Run 'envhub pull' first to get the latest changes, or use --force to overwrite.
 ℹ Push cancelled.
 ```
 

@@ -1,0 +1,35 @@
+<svg width="1280" height="320" viewBox="0 0 1280 320" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">ENVHUB CLI Banner</title>
+  <desc id="desc">Minimal hero banner with soft blurred gradient background.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1221"/>
+      <stop offset="1" stop-color="#121C2E"/>
+    </linearGradient>
+    <linearGradient id="orbA" x1="180" y1="90" x2="560" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2DD4BF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="orbB" x1="760" y1="80" x2="1120" y2="310" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <filter id="blur" x="-200" y="-200" width="1680" height="720" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="55"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="320" rx="18" fill="url(#bg)"/>
+
+  <g opacity="0.55" filter="url(#blur)">
+    <circle cx="280" cy="120" r="150" fill="url(#orbA)"/>
+    <circle cx="980" cy="190" r="170" fill="url(#orbB)"/>
+  </g>
+
+  <text x="120" y="150" fill="#F8FBFF" font-family="Verdana, Geneva, sans-serif" font-size="62" font-weight="700" letter-spacing="1">
+    ENVHUB CLI
+  </text>
+  <text x="122" y="200" fill="#C8D9F0" font-family="Verdana, Geneva, sans-serif" font-size="27" font-weight="400">
+    Secure .env sharing for teams, powered by your cloud secret manager.
+  </text>
+</svg>

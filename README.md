@@ -1,6 +1,7 @@
 <div align="center">
-  <h1>ENVHUB CLI</h1>
-  <p><strong>Share <code>.env</code> files securely across your team using your own cloud secret manager.</strong></p>
+  <img src="./docs/assets/envhub-banner.svg" alt="ENVHUB CLI banner" width="100%">
+  <br />
+  <br />
   <p>
     <a href="https://www.npmjs.com/package/envhub-cli"><img src="https://img.shields.io/npm/v/envhub-cli?style=for-the-badge" alt="npm version"></a>
     <a href="https://github.com/caanyp24/envhub-cli"><img src="https://img.shields.io/github/license/caanyp24/envhub-cli?style=for-the-badge" alt="license"></a>

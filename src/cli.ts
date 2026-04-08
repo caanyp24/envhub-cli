@@ -8,6 +8,7 @@ import { listCommand } from "./commands/list.js";
 import { deleteCommand } from "./commands/delete.js";
 import { grantCommand } from "./commands/grant.js";
 import { revokeCommand } from "./commands/revoke.js";
+import { doctorCommand } from "./commands/doctor.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json") as { version: string };
@@ -54,8 +55,10 @@ export function createProgram(): Command {
     .description("Pull the latest .env file from the cloud provider")
     .argument("<name>", "Name of the secret to pull")
     .argument("<file>", "Path to write the .env file to")
-    .action(async (name: string, file: string) => {
-      await pullCommand(name, file);
+    .option("--dry-run", "Show the pull diff without writing the local file", false)
+    .option("--backup", "Create <file>.bak before overwriting the local file", false)
+    .action(async (name: string, file: string, options) => {
+      await pullCommand(name, file, options);
     });
 
   // ── cat ─────────────────────────────────────────────────────────
@@ -64,8 +67,9 @@ export function createProgram(): Command {
     .command("cat")
     .description("Display the contents of a secret")
     .argument("<name>", "Name of the secret to display")
-    .action(async (name: string) => {
-      await catCommand(name);
+    .option("--masked", "Mask secret values in output", false)
+    .action(async (name: string, options) => {
+      await catCommand(name, options);
     });
 
   // ── list ────────────────────────────────────────────────────────
@@ -74,8 +78,9 @@ export function createProgram(): Command {
     .command("list")
     .alias("ls")
     .description("List all secrets managed by envhub")
-    .action(async () => {
-      await listCommand();
+    .option("--json", "Output secrets as JSON", false)
+    .action(async (options) => {
+      await listCommand(options);
     });
 
   // ── delete ──────────────────────────────────────────────────────
@@ -110,6 +115,16 @@ export function createProgram(): Command {
     .argument("<user>", "IAM username or ARN of the user to revoke access")
     .action(async (name: string, user: string) => {
       await revokeCommand(name, user);
+    });
+
+  // ── doctor ──────────────────────────────────────────────────────
+
+  program
+    .command("doctor")
+    .description("Run health checks for envhub configuration and provider access")
+    .option("--json", "Output checks as JSON for CI parsing", false)
+    .action(async (options) => {
+      await doctorCommand(options);
     });
 
   return program;

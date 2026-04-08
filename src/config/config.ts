@@ -38,14 +38,20 @@ export class ConfigManager {
       );
     }
 
-    const config = { ...DEFAULT_CONFIG, ...result.config } as EnvhubConfig;
-    const errors = validateConfig(config);
+    const rawConfig = result.config as Partial<EnvhubConfig>;
+    const errors = validateConfig(rawConfig);
 
     if (errors.length > 0) {
       throw new Error(
         `Invalid configuration in ${result.filepath}:\n  - ${errors.join("\n  - ")}`
       );
     }
+
+    const config = {
+      ...DEFAULT_CONFIG,
+      ...rawConfig,
+      secrets: rawConfig.secrets ?? {},
+    } as EnvhubConfig;
 
     this.config = config;
     this.configPath = result.filepath;

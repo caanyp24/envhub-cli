@@ -1,17 +1,92 @@
 import * as path from "node:path";
 import chalk from "chalk";
-import { confirm } from "@inquirer/prompts";
 import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { VersionControl } from "../versioning/version-control.js";
-import { readEnvFileRaw, fileExists, parseEnvContent } from "../utils/env-parser.js";
-import { stripEnvhubHeader } from "../utils/envhub-header.js";
-import { diffEnvContents, formatChanges } from "../utils/diff.js";
+import {
+  readEnvFileRaw,
+  writeEnvFileRaw,
+  fileExists,
+  parseEnvContent,
+} from "../utils/env-parser.js";
+import {
+  addEnvhubHeader,
+  getEnvhubHeaderEnvironment,
+  stripEnvhubHeader,
+} from "../utils/envhub-header.js";
+import { diffEnvContents } from "../utils/diff.js";
 import { logger } from "../utils/logger.js";
+import { renderPushPreview } from "../utils/push-preview-ui.js";
 
 interface PushCommandOptions {
   message?: string;
   force?: boolean;
+}
+
+function isSecretNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const err = error as Error & {
+    code?: string | number;
+    status?: number;
+    statusCode?: number;
+    response?: { status?: number };
+  };
+
+  const code = String(err.code ?? "").toLowerCase();
+  const message = err.message.toLowerCase();
+  const status =
+    err.statusCode ?? err.status ?? err.response?.status;
+
+  if (status === 404) {
+    return true;
+  }
+
+  // GCP gRPC NOT_FOUND
+  if (code === "5") {
+    return true;
+  }
+
+  // Common provider-specific not-found identifiers/messages
+  const notFoundTokens = [
+    "not found",
+    "resourcenotfoundexception",
+    "secretnotfound",
+    "secretnotfound",
+  ];
+
+  return (
+    notFoundTokens.some((token) => code.includes(token)) ||
+    notFoundTokens.some((token) => message.includes(token))
+  );
+}
+
+async function confirmOrCancel(
+  message: string,
+  defaultValue: boolean
+): Promise<boolean | "cancelled"> {
+  const result = await logger.promptConfirm({
+    message,
+    default: defaultValue,
+    cancelMessage: "Push cancelled.",
+  });
+  if (result === "cancelled") {
+    logger.info("Push cancelled.");
+    return "cancelled";
+  }
+  return result;
+}
+
+function formatVersionConflictMessage(
+  localVersion: number,
+  remoteVersion: number
+): string {
+  return (
+    `Remote version (${remoteVersion}) is newer than your local version (${localVersion}).\n` +
+    "Run 'envhub pull' first to sync changes, or use --force to overwrite."
+  );
 }
 
 /**
@@ -25,8 +100,7 @@ function formatNewEntries(content: string): string {
 
   const lines: string[] = [`  🆕 New secret with ${entries.size} entries:`];
   for (const [key, value] of entries) {
-    const masked = value.length <= 3 ? "***" : value.substring(0, 3) + "***";
-    lines.push(chalk.green(`     + ${key}=${masked}`));
+    lines.push(chalk.green(`     + ${key}=${value}`));
   }
   return lines.join("\n");
 }
@@ -54,34 +128,69 @@ export async function pushCommand(
   }
 
   // Read the local .env file
-  const localContent = stripEnvhubHeader(await readEnvFileRaw(resolvedPath));
+  const rawLocalContent = await readEnvFileRaw(resolvedPath);
+  const headerEnvironment = getEnvhubHeaderEnvironment(rawLocalContent);
+  const localContent = stripEnvhubHeader(rawLocalContent);
+
+  if (!options.force && !headerEnvironment) {
+    logger.error("Missing envhub header in local file.");
+    logger.info(
+      `Run 'envhub pull ${secretName} ${filePath}' first to regenerate the header, or use --force to override.`
+    );
+    process.exit(1);
+    return;
+  }
+
+  // Detect whether secret already exists remotely
+  let isNewSecret = false;
+  let remoteContent = "";
+
+  try {
+    remoteContent = stripEnvhubHeader(await provider.cat(secretName));
+  } catch (error) {
+    if (!isSecretNotFoundError(error)) {
+      if (error instanceof Error) {
+        logger.error(error.message);
+      } else {
+        logger.error("Failed to read remote secret.");
+      }
+      process.exit(1);
+      return;
+    }
+
+    // Secret doesn't exist yet — show all entries as new
+    isNewSecret = true;
+  }
+
+  if (!options.force && headerEnvironment !== secretName && !isNewSecret) {
+    logger.error(
+      `Environment mismatch: file header is '${headerEnvironment}', but you are pushing to '${secretName}'.`
+    );
+    logger.info(
+      `Run 'envhub pull ${secretName} ${filePath}' first, or use --force to override.`
+    );
+    process.exit(1);
+    return;
+  }
 
   // Version check (unless --force)
   if (!options.force) {
     const versionCheck = await versionControl.checkBeforePush(secretName);
 
     if (!versionCheck.canPush) {
-      logger.warn(versionCheck.reason ?? "Version conflict detected.");
-      logger.newline();
-
-      const forcePush = await confirm({
-        message: "Do you want to force push anyway?",
-        default: false,
-      });
-
-      if (!forcePush) {
-        logger.info("Push cancelled. Run 'envhub pull' first.");
-        return;
-      }
+      logger.warn(
+        formatVersionConflictMessage(
+          versionCheck.localVersion,
+          versionCheck.remoteVersion
+        )
+      );
+      logger.info("Push cancelled.");
+      process.exit(1);
+      return;
     }
   }
 
-  // Show diff: compare local file with remote content
-  let isNewSecret = false;
-
-  try {
-    const remoteContent = stripEnvhubHeader(await provider.cat(secretName));
-
+  if (!isNewSecret) {
     // Secret exists — compare local vs remote
     const changes = diffEnvContents(remoteContent, localContent);
 
@@ -92,15 +201,20 @@ export async function pushCommand(
 
     if (changes.length > 0) {
       logger.newline();
-      logger.log("Changes to push:");
-      logger.log(formatChanges(changes));
+      renderPushPreview({
+        environment: secretName,
+        filePath,
+        changes,
+        force: options.force,
+      });
       logger.newline();
 
       if (!options.force) {
-        const confirmPush = await confirm({
-          message: "Push these changes?",
-          default: true,
-        });
+        const confirmPush = await confirmOrCancel("Push these changes?", true);
+
+        if (confirmPush === "cancelled") {
+          return;
+        }
 
         if (!confirmPush) {
           logger.info("Push cancelled.");
@@ -108,18 +222,21 @@ export async function pushCommand(
         }
       }
     }
-  } catch {
+  } else {
     // Secret doesn't exist yet — show all entries as new
-    isNewSecret = true;
     logger.newline();
     logger.log(formatNewEntries(localContent));
     logger.newline();
 
     if (!options.force) {
-      const confirmPush = await confirm({
-        message: `Create new secret '${secretName}'?`,
-        default: true,
-      });
+      const confirmPush = await confirmOrCancel(
+        `Create new secret '${secretName}'?`,
+        true
+      );
+
+      if (confirmPush === "cancelled") {
+        return;
+      }
 
       if (!confirmPush) {
         logger.info("Push cancelled.");
@@ -143,6 +260,18 @@ export async function pushCommand(
 
     // Update local version tracking
     await versionControl.recordPush(secretName, result.version, filePath);
+
+    // Keep local header aligned with the pushed environment name.
+    if (headerEnvironment !== secretName) {
+      const headerSyncedContent = addEnvhubHeader(secretName, localContent);
+      try {
+        await writeEnvFileRaw(resolvedPath, headerSyncedContent);
+      } catch {
+        logger.warn(
+          "Push succeeded, but local file header could not be updated."
+        );
+      }
+    }
 
     spinner.succeed(
       `Pushed '${secretName}' (v${result.version}) to ${provider.name}.`

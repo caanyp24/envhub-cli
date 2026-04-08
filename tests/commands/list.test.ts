@@ -107,6 +107,51 @@ describe("listCommand", () => {
     expect(logger.tableHeader).not.toHaveBeenCalled();
   });
 
+  it("should output JSON when --json is enabled", async () => {
+    mockProvider.list.mockResolvedValueOnce([
+      {
+        name: "app-dev",
+        secretsCount: 5,
+        updatedAt: new Date("2025-06-01T10:30:00.000Z"),
+        lastMessage: "added redis",
+      },
+      {
+        name: "app-prod",
+        secretsCount: 8,
+        updatedAt: null,
+        lastMessage: null,
+      },
+    ]);
+
+    await listCommand({ json: true });
+
+    expect(mockSpinner.stop).toHaveBeenCalled();
+    expect(logger.tableHeader).not.toHaveBeenCalled();
+    expect(logger.tableRow).not.toHaveBeenCalled();
+    expect(logger.dim).not.toHaveBeenCalled();
+
+    const expected = JSON.stringify(
+      [
+        {
+          name: "app-dev",
+          secretsCount: 5,
+          updatedAt: "2025-06-01T10:30:00.000Z",
+          lastMessage: "added redis",
+        },
+        {
+          name: "app-prod",
+          secretsCount: 8,
+          updatedAt: null,
+          lastMessage: null,
+        },
+      ],
+      null,
+      2
+    );
+
+    expect(logger.log).toHaveBeenCalledWith(expected);
+  });
+
   it("should show an error when the provider fails", async () => {
     mockProvider.list.mockRejectedValueOnce(new Error("Network error"));
 

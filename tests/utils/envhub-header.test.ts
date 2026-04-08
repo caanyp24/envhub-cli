@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { addEnvhubHeader, stripEnvhubHeader } from "../../src/utils/envhub-header.js";
+import {
+  addEnvhubHeader,
+  getEnvhubHeaderEnvironment,
+  stripEnvhubHeader,
+} from "../../src/utils/envhub-header.js";
 
 describe("envhub-header utils", () => {
   describe("stripEnvhubHeader", () => {
@@ -17,6 +21,24 @@ describe("envhub-header utils", () => {
     it("should remove legacy single-line envhub header", () => {
       const content = "# envhub: secret=my-app\nKEY=value\n";
       expect(stripEnvhubHeader(content)).toBe("KEY=value\n");
+    });
+  });
+
+  describe("getEnvhubHeaderEnvironment", () => {
+    it("should read secret name from the current two-line header", () => {
+      const content =
+        "# 🔐 Managed by envhub-cli\n# Environment: my-app\n\nKEY=value\n";
+      expect(getEnvhubHeaderEnvironment(content)).toBe("my-app");
+    });
+
+    it("should read secret name from legacy single-line header", () => {
+      const content = "# envhub: secret=legacy-app\nKEY=value\n";
+      expect(getEnvhubHeaderEnvironment(content)).toBe("legacy-app");
+    });
+
+    it("should return null when header is not present", () => {
+      const content = "KEY=value\n";
+      expect(getEnvhubHeaderEnvironment(content)).toBeNull();
     });
   });
 

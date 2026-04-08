@@ -2,11 +2,15 @@ import { configManager } from "../config/config.js";
 import { ProviderFactory } from "../providers/provider.factory.js";
 import { logger } from "../utils/logger.js";
 
+interface ListCommandOptions {
+  json?: boolean;
+}
+
 /**
  * The `envhub list` command.
  * Lists all secrets managed by envhub for the current provider.
  */
-export async function listCommand(): Promise<void> {
+export async function listCommand(options: ListCommandOptions = {}): Promise<void> {
   // Load config and create provider
   const config = await configManager.load();
   const provider = ProviderFactory.createProvider(config);
@@ -22,12 +26,24 @@ export async function listCommand(): Promise<void> {
       return;
     }
 
+    if (options.json) {
+      const output = secrets.map((secret) => ({
+        name: secret.name,
+        secretsCount: secret.secretsCount,
+        updatedAt: secret.updatedAt ? secret.updatedAt.toISOString() : null,
+        lastMessage: secret.lastMessage ?? null,
+      }));
+      logger.log(JSON.stringify(output, null, 2));
+      return;
+    }
+
     logger.newline();
     logger.tableHeader(
       { label: "Name", width: 30 },
       { label: "Secrets", width: 10 },
       { label: "Updated", width: 22 },
-      { label: "Message", width: 30 }
+      { label: "Message", width: 30 },
+      { maxSeparatorWidth: 104 }
     );
 
     for (const secret of secrets) {
@@ -50,7 +66,7 @@ export async function listCommand(): Promise<void> {
     }
 
     logger.newline();
-    logger.dim(`  ${secrets.length} secret(s) found.`);
+    logger.dim(`${secrets.length} secret(s) found.`);
     logger.newline();
   } catch (error) {
     spinner.fail("Failed to list secrets.");

@@ -13,20 +13,30 @@
 
 ## Why ENVHUB
 
+Most tools store your secrets in their own cloud.
+
+envhub doesn't.
+
+- Use your existing AWS, GCP, or Azure account
+- No external SaaS or secret storage
+- No vendor lock-in
+- Sync `.env` files with simple `push` / `pull`
+- Track versions and avoid accidental overwrites
 - Stop sharing secrets in Slack, Teams, or email
-- Sync `.env` files with simple `push` and `pull` commands
-- Reduce accidental overwrites with version tracking
-- Set up projects fast with an interactive `init` wizard
-- Keep full control by using your existing cloud provider
 
 ## Table of Contents
 
+- [Demo](#demo)
 - [Quick Start](#quick-start)
 - [Command Overview](#command-overview)
 - [Documentation](#documentation)
 - [Supported Providers](#supported-providers)
 - [Requirements](#requirements)
 - [License](#license)
+
+## Demo
+
+![ENVHUB CLI demo](./docs/assets/envhub-demo.gif)
 
 ## Quick Start
 

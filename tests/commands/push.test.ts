@@ -316,8 +316,9 @@ describe("pushCommand", () => {
     conflictSpy.mockRestore();
   });
 
-  it("should block push when envhub header is missing", async () => {
+  it("should block push when envhub header is missing for an existing secret", async () => {
     await fs.writeFile(envFilePath, "KEY=value\n");
+    mockProvider.cat.mockResolvedValueOnce("KEY=remote\n");
 
     await pushCommand("my-app", envFilePath, {});
 
@@ -326,6 +327,28 @@ describe("pushCommand", () => {
     );
     expect(process.exit).toHaveBeenCalledWith(1);
     expect(mockProvider.push).not.toHaveBeenCalled();
+  });
+
+  it("should allow first push without envhub header for a new secret", async () => {
+    await fs.writeFile(envFilePath, "KEY=value\n");
+
+    mockProvider.cat.mockReset();
+    mockProvider.push.mockReset();
+    mockProvider.getVersion.mockReset();
+    vi.mocked(logger.promptConfirm).mockReset();
+    vi.mocked(logger.promptConfirm).mockImplementation(async () => true);
+    mockProvider.cat.mockRejectedValueOnce(new Error("Not found"));
+    mockProvider.push.mockResolvedValueOnce({ version: 1, name: "my-app-demo" });
+    mockProvider.getVersion.mockRejectedValueOnce(new Error("Not found"));
+
+    await pushCommand("my-app-demo", envFilePath, {});
+
+    expect(mockProvider.cat).toHaveBeenCalledWith("my-app-demo");
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.info).not.toHaveBeenCalledWith(
+      expect.stringContaining("Push cancelled.")
+    );
+    expect(process.exit).not.toHaveBeenCalled();
   });
 
   it("should strip envhub header before push", async () => {

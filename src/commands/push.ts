@@ -132,15 +132,6 @@ export async function pushCommand(
   const headerEnvironment = getEnvhubHeaderEnvironment(rawLocalContent);
   const localContent = stripEnvhubHeader(rawLocalContent);
 
-  if (!options.force && !headerEnvironment) {
-    logger.error("Missing envhub header in local file.");
-    logger.info(
-      `Run 'envhub pull ${secretName} ${filePath}' first to regenerate the header, or use --force to override.`
-    );
-    process.exit(1);
-    return;
-  }
-
   // Detect whether secret already exists remotely
   let isNewSecret = false;
   let remoteContent = "";
@@ -160,6 +151,16 @@ export async function pushCommand(
 
     // Secret doesn't exist yet — show all entries as new
     isNewSecret = true;
+  }
+
+  // Require envhub header only when updating an existing secret.
+  if (!options.force && !headerEnvironment && !isNewSecret) {
+    logger.error("Missing envhub header in local file.");
+    logger.info(
+      `Run 'envhub pull ${secretName} ${filePath}' first to regenerate the header, or use --force to override.`
+    );
+    process.exit(1);
+    return;
   }
 
   if (!options.force && headerEnvironment !== secretName && !isNewSecret) {
